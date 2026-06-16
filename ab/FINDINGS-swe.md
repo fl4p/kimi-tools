@@ -167,6 +167,8 @@ calls the agent made. Averaged over the 8 psf/requests instances per arm.
 
 ![Avg tokens per instance, by prompt × model](charts/cost-tokens.svg)
 
+![Avg tool calls per instance, by prompt × model](charts/cost-tools.svg)
+
 <sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG; data mirrors the
 table above). Blue = K2.6, orange = K2.7.</sub>
 

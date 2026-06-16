@@ -23,6 +23,10 @@ TOKENS = {  # avg tokens / instance, in thousands
     "default": (731, 728), "sharp": (652, 530), "cursor": (814, 751),
     "codex-coding": (517, 607), "claude-code": (676, 575), "cline": (541, 908),
 }
+TOOLS = {  # avg tool calls / instance
+    "default": (25.4, 25.2), "sharp": (24.9, 23.4), "cursor": (26.0, 27.4),
+    "codex-coding": (18.8, 24.5), "claude-code": (22.4, 25.6), "cline": (25.9, 31.2),
+}
 
 # theme (matches ab/bake-off.html)
 BG, FG, MUTED, GRID = "#111", "#ddd", "#888", "#333"
@@ -87,7 +91,10 @@ def main():
     (OUT / "cost-tokens.svg").write_text(chart(
         "Avg tokens per instance — by prompt × model", "thousands of tokens (lower is better)",
         TOKENS, ymax=1000, ticks=[0, 250, 500, 750, 1000], fmt=lambda v: f"{v}k"))
-    print("wrote", OUT / "cost-latency.svg", "and", OUT / "cost-tokens.svg")
+    (OUT / "cost-tools.svg").write_text(chart(
+        "Avg tool calls per instance — by prompt × model", "tool calls (lower is better)",
+        TOOLS, ymax=32, ticks=[0, 8, 16, 24, 32], fmt=lambda v: f"{v}"))
+    print("wrote cost-latency.svg, cost-tokens.svg, cost-tools.svg to", OUT)
 
 
 if __name__ == "__main__":
