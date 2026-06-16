@@ -34,8 +34,6 @@ system prompt. `default` = opencode's built-in coding prompt; the other five use
 | **claude-code** \* | 7/8 | **8/8** | Claude Code interactive CLI |
 | cline (native-next-gen) | 7/8 | 7/8 | Cline default |
 
-\* **winner** — the only arm to beat the default outright, hitting a perfect **8/8** (on K2.7).
-
 **Two clean families:**
 
 1. **Harness-/terseness-tuned prompts regress** (`sharp`, `cursor`) — they were
