@@ -25,6 +25,7 @@ variable between two prediction files is the model — same design as the
 scenario A/B.
 """
 import argparse
+import csv
 import json
 import os
 import re
@@ -327,6 +328,70 @@ def cmd_list(args):
     print(f"# {len(insts)} instances", file=sys.stderr)
 
 
+# columns of bake-off-cost.csv (what make_cost_charts.py reads)
+COST_COLS = ["prompt", "model", "resolved", "total", "latency_s", "tokens_k", "tool_calls"]
+MODEL_LABEL = {"k2.6": "K2.6", "k2.7": "K2.7"}
+
+
+def _resolved_from_report(path: Path):
+    """Pull (resolved, total) out of a swebench run_evaluation report JSON."""
+    rep = json.loads(Path(path).read_text())
+    total = rep.get("total_instances") or rep.get("submitted_instances") \
+        or len(rep.get("submitted_ids", [])) or None
+    resolved = rep.get("resolved_instances")
+    if resolved is None and "resolved_ids" in rep:
+        resolved = len(rep["resolved_ids"])
+    return resolved, total
+
+
+def cmd_aggregate(args):
+    """Reduce a predict `*.meta.json` (per-instance array) to one cost-profile
+    row and upsert it into bake-off-cost.csv — the file the chart tool reads.
+    Resolved count comes from the separate swebench eval (`--resolved 6/8` or
+    `--report <run_evaluation .json>`)."""
+    metas = json.loads(Path(args.meta).read_text())
+    n = len(metas)
+    if not n:
+        sys.exit(f"{args.meta}: no instances")
+
+    def avg(key, scale=1.0):
+        vals = [m[key] for m in metas if m.get(key) is not None]
+        return round(sum(vals) / len(vals) / scale, 1) if vals else ""
+
+    model = args.model_label or MODEL_LABEL.get(
+        (metas[0].get("model") or "").lower(), metas[0].get("model", "?"))
+
+    if args.report:
+        resolved, total = _resolved_from_report(args.report)
+    elif args.resolved:
+        resolved, _, total = args.resolved.partition("/")
+        resolved, total = int(resolved), int(total or n)
+    else:
+        resolved, total = "", n
+
+    row = {"prompt": args.prompt, "model": model,
+           "resolved": resolved, "total": total,
+           "latency_s": avg("duration_s"), "tokens_k": avg("tokens", 1000.0),
+           "tool_calls": avg("tool_calls")}
+
+    csv_path = Path(args.csv)
+    rows = []
+    if csv_path.exists():
+        with open(csv_path, newline="") as fh:
+            rows = [r for r in csv.DictReader(fh)
+                    if not (r["prompt"] == row["prompt"] and r["model"] == row["model"])]
+    rows.append(row)
+    rows.sort(key=lambda r: (r["prompt"], r["model"]))
+    with open(csv_path, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=COST_COLS)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"upserted {row['prompt']}/{row['model']} "
+          f"(resolved={resolved}/{total}, {row['latency_s']}s, "
+          f"{row['tokens_k']}k, {row['tool_calls']} tools) -> {csv_path}",
+          file=sys.stderr)
+
+
 def main():
     ap = argparse.ArgumentParser(description="SWE-bench Verified predict harness (Kimi via opencode)")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -355,6 +420,18 @@ def main():
                     "seeds an opencode.json custom agent. Omit = opencode default prompt.")
     pp.add_argument("--save-logs", help="dir for raw opencode json per instance")
     pp.set_defaults(func=cmd_predict)
+
+    pa = sub.add_parser("aggregate", help="reduce a predict *.meta.json to one "
+                        "cost-profile CSV row (the file make_cost_charts.py reads)")
+    pa.add_argument("--meta", required=True, help="a predict *.meta.json (per-instance array)")
+    pa.add_argument("--prompt", required=True, help="arm/prompt label, e.g. claude-code")
+    pa.add_argument("--model-label", help="e.g. K2.6 (default: inferred from meta's model field)")
+    g = pa.add_mutually_exclusive_group()
+    g.add_argument("--resolved", help='resolved count as "N/M", e.g. 8/8')
+    g.add_argument("--report", help="a swebench run_evaluation report JSON to read resolved from")
+    pa.add_argument("--csv", default=str(Path(__file__).resolve().parent / "bake-off-cost.csv"),
+                    help="output CSV (default: ab/bake-off-cost.csv)")
+    pa.set_defaults(func=cmd_aggregate)
 
     args = ap.parse_args()
     args.func(args)

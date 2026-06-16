@@ -1,0 +1,13 @@
+prompt,model,resolved,total,latency_s,tokens_k,tool_calls
+default,K2.6,6,8,95,731,25.4
+default,K2.7,6,8,72,728,25.2
+sharp,K2.6,2,8,87,652,24.9
+sharp,K2.7,4,8,86,530,23.4
+cursor,K2.6,3,8,149,814,26.0
+cursor,K2.7,4,8,254,751,27.4
+codex-coding,K2.6,7,8,93,517,18.8
+codex-coding,K2.7,6,8,158,607,24.5
+claude-code,K2.6,7,8,123,676,22.4
+claude-code,K2.7,8,8,178,575,25.6
+cline,K2.6,7,8,140,541,25.9
+cline,K2.7,7,8,295,908,31.2

@@ -169,8 +169,10 @@ calls the agent made. Averaged over the 8 psf/requests instances per arm.
 
 ![Avg tool calls per instance, by prompt × model](charts/cost-tools.svg)
 
-<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG; data mirrors the
-table above). Blue = K2.6, orange = K2.7.</sub>
+<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG), rendered from
+`bake-off-cost.csv` — the benchmark's own output via `swe_bench.py aggregate`
+(per-arm reduction of each predict `*.meta.json`), the same numbers as the table
+above. Blue = K2.6, orange = K2.7.</sub>
 
 What the cost columns add on top of the resolved-rate story:
 
@@ -202,10 +204,20 @@ tokens/tool-call counts are the stable signal.
 
 ## Repro
 ```bash
-# predict
+# 1) predict (writes preds_*.jsonl + a preds_*.meta.json sidecar with
+#    per-instance duration_s / tokens / tool_calls)
 python3 swe_bench.py predict --model k2.6 --repos psf/requests --out preds_k26.jsonl
 python3 swe_bench.py predict --model k2.7 --repos psf/requests --out preds_k27.jsonl
-# eval (colima running; DOCKER_HOST = colima socket)
+
+# 2) eval (colima running; DOCKER_HOST = colima socket)
 python -m swebench.harness.run_evaluation --dataset_name princeton-nlp/SWE-bench_Verified \
     --predictions_path preds_k26.jsonl --run_id req_k26 --namespace swebench
+
+# 3) aggregate each arm's meta.json (+ its resolved count) into the cost CSV,
+#    then re-render the charts from it — no hand-edited numbers
+python3 swe_bench.py aggregate --meta preds_k26.meta.json --prompt default --resolved 6/8
+python3 make_cost_charts.py          # bake-off-cost.csv -> charts/cost-*.svg
 ```
+
+The committed `bake-off-cost.csv` + `charts/*.svg` are the snapshot from the run
+above (the raw `preds_*`/`*.meta.json`/eval reports are gitignored).
