@@ -16,6 +16,7 @@ export INSTANCES="${INSTANCES:-$(tr -d '[:space:]' < "$HERE/instances.txt")}"
 export TIMEOUT="${TIMEOUT:-600}" RETRIES="${RETRIES:-1}"
 PY="$VENV/bin/python"; SP="$ROOT/system-prompts"
 CONCURRENCY="${CONCURRENCY:-8}"; WORKERS="${WORKERS:-2}"; MIN_FREE_GB="${MIN_FREE_GB:-5}"
+STAGE="${STAGE:-all}"     # predict | eval | all — split phases (e.g. predict here, eval elsewhere)
 
 CLAUDE="$SP/claude-code/2.1.178/interactive-cli.oc-adapted.md"
 KCBAL="$SP/kimi-cline/kimi.system-prompt.oc-adapted.md"
@@ -31,19 +32,23 @@ kcbal_k27 k2.7 $KCBAL
 kcauto_k26 k2.6 $KCAUTO
 kcauto_k27 k2.7 $KCAUTO"
 
-echo "===== PREDICT (concurrency $CONCURRENCY) ====="
-rm -f "$OUT/logs/_progress.txt"
-echo "$ARMS" | xargs -P "$CONCURRENCY" -L 1 bash "$HERE/predict_arm.sh"
-echo "predict done. per-arm patch counts:"
-for a in default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27; do
-  n=$(grep -cE '[0-9]+B|EMPTY' "$OUT/logs/$a.out" 2>/dev/null || echo 0); echo "  $a: $n"
-done
+if [ "$STAGE" = predict ] || [ "$STAGE" = all ]; then
+  echo "===== PREDICT (concurrency $CONCURRENCY) ====="
+  rm -f "$OUT/logs/_progress.txt"
+  echo "$ARMS" | xargs -P "$CONCURRENCY" -L 1 bash "$HERE/predict_arm.sh"
+  echo "predict done. per-arm patch counts:"
+  for a in default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27; do
+    n=$(grep -cE '[0-9]+B|EMPTY' "$OUT/logs/$a.out" 2>/dev/null || echo 0); echo "  $a: $n"
+  done
+fi
 
-echo "===== EVAL (sequential, workers=$WORKERS, min-free=${MIN_FREE_GB}G) ====="
-EVAL_ARMS=()
-for a in default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27; do
-  EVAL_ARMS+=(--arm "$a" "$OUT/preds_${a}.jsonl")
-done
-"$PY" "$AB/eval_runner.py" --report-dir "$OUT/eval" \
-  --workers "$WORKERS" --min-free-gb "$MIN_FREE_GB" "${EVAL_ARMS[@]}"
-echo "===== DONE. summary: $OUT/eval/summary.json ====="
+if [ "$STAGE" = eval ] || [ "$STAGE" = all ]; then
+  echo "===== EVAL (sequential, workers=$WORKERS, min-free=${MIN_FREE_GB}G) ====="
+  EVAL_ARMS=()
+  for a in default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27; do
+    EVAL_ARMS+=(--arm "$a" "$OUT/preds_${a}.jsonl")
+  done
+  "$PY" "$AB/eval_runner.py" --report-dir "$OUT/eval" \
+    --workers "$WORKERS" --min-free-gb "$MIN_FREE_GB" "${EVAL_ARMS[@]}"
+  echo "===== DONE. summary: $OUT/eval/summary.json ====="
+fi
