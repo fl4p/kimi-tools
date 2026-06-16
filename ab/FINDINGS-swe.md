@@ -193,6 +193,41 @@ Caveat on these numbers: latency is emulated/local wall-clock (Fireworks queue +
 network), so absolute seconds are noisy; the *relative* ordering and the
 tokens/tool-call counts are the stable signal.
 
+## Statistical significance
+
+What's real vs what's noise: put the resolved-rate gaps through an actual test (Fisher exact, two-sided;
+Wilson 95% CIs at n=8) and they split into two tiers:
+
+**Real — the family split.** The hygiene-/terseness-tuned prompts genuinely
+regress vs the real coding-agent prompts (pooling both models, n=16):
+
+- `sharp` 6/16 vs `claude-code` 15/16 → **p = 0.002**
+- `cursor` 7/16 vs `claude-code` 15/16 → **p = 0.006**
+
+These survive even being strict about multiple comparisons. The "two families"
+verdict is the part of this study to trust.
+
+**Noise — the ranking inside the good family.** Every top-cluster difference is
+statistically indistinguishable:
+
+- `claude-code` 8/8 vs `default` 6/8 (per model) → p = 0.47
+- `default` vs `claude-code` (pooled) → p = 0.33 · `codex` vs `claude` → p = 0.60
+  · `default` vs `cline` → p = 0.65
+
+The CIs are enormous — 6/8 → [0.41, 0.93], 8/8 → [0.68, 1.00], near-total overlap.
+So **`claude-code`'s 8/8 "win" is a ±1-instance wobble, not a proven edge** over
+codex/cline/default, and **K2.6 ≈ K2.7** is consistent with no detectable
+difference. Even `sharp` vs the *median* `default` is only borderline (p = 0.073).
+
+Compounding it: n=8, one repo, one difficulty band, 1 attempt (a single empty
+patch = a 12.5% swing), and ~15 pairwise comparisons inflating false-positive
+risk. The cost/latency/token numbers are noisier still (per-instance variance +
+some eval-VM contention) — read them as directional only.
+
+**Bottom line: trust the direction and the family split; don't rank the top four.**
+Separating those would need ~50–100 instances across the hard django/sympy/sklearn
+band with pass@k.
+
 ## Caveats (why this isn't the final word)
 - **n=8, one repo, easy band.** All requests instances are "<15 min – 1 hour",
   pure-Python. The signal-bearing instances live in django/sympy/sklearn

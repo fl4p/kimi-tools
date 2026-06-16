@@ -86,6 +86,12 @@ best resolved rate). Charts are rendered by
 across every run, **K2.6 ≈ K2.7 on what they can solve** — they differ only in
 latency/cost/failure-shape, not capability, at this difficulty band.
 
+⚠️ **Significance:** at n=8 only the *family split* is statistically real
+(`sharp`/`cursor` regress: p ≈ 0.002–0.006). The ranking *within* the good family
+— claude-code 8/8 vs codex/cline/default — is **not** significant (p ≈ 0.3–0.6,
+CIs overlap almost entirely). Trust the direction, not the top-four order. Details:
+[`ab/FINDINGS-swe.md` → Statistical significance](ab/FINDINGS-swe.md#statistical-significance).
+
 → Full tables, cost profiles, the sharp-prompt regression, and caveats:
 **[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md)**.
 
