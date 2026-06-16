@@ -1,0 +1,41 @@
+[
+  {
+    "id": "create-file",
+    "name": "Create a simple file",
+    "prompt": "Create a file called hello.txt that contains the text 'Hello, World!'",
+    "timeout": 120,
+    "template": {},
+    "expect_files": ["hello.txt"],
+    "expect_contains": [{ "file": "hello.txt", "contains": "Hello" }]
+  },
+  {
+    "id": "edit-file",
+    "name": "Edit an existing file",
+    "prompt": "Edit the file greeting.txt and change 'Hello' to 'Goodbye'",
+    "timeout": 120,
+    "template": { "greeting.txt": "Hello, friend!\n" },
+    "expect_files": ["greeting.txt"],
+    "expect_contains": [{ "file": "greeting.txt", "contains": "Goodbye" }]
+  },
+  {
+    "id": "multi-file",
+    "name": "Create multiple files (tool chaining)",
+    "prompt": "Create a simple project with two files: index.html with a basic HTML structure, and style.css with a body style that sets the font family to Arial",
+    "timeout": 180,
+    "template": {},
+    "expect_files": ["index.html", "style.css"],
+    "expect_contains": [
+      { "file": "index.html", "contains": "html" },
+      { "file": "style.css", "contains": "Arial" }
+    ]
+  },
+  {
+    "id": "inspect-then-edit",
+    "name": "Search, read, then edit (multi-step, tempts run_commands)",
+    "prompt": "There is a Python file app.py with a function that returns the wrong greeting. Find the function, read it, and change the returned string from 'hi' to 'hello'. Then show me the final file.",
+    "timeout": 180,
+    "template": { "app.py": "def greet():\n    return 'hi'\n\n\nif __name__ == '__main__':\n    print(greet())\n" },
+    "expect_files": ["app.py"],
+    "expect_contains": [{ "file": "app.py", "contains": "hello" }]
+  }
+]

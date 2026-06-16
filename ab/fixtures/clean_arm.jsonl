@@ -1,0 +1,11 @@
+{"type": "say", "say": "text", "text": "I'll find the function, read it, then edit it."}
+{"type": "tool", "name": "search_codebase", "input": {"queries": "def greet"}}
+{"type": "tool_result", "name": "search_codebase", "output": "app.py:1: def greet():"}
+{"type": "tool", "name": "Read", "input": {"file_path": "/work/app.py"}}
+{"type": "tool_result", "name": "Read", "output": "1\tdef greet():\n2\t    return 'hi'"}
+{"type": "tool", "name": "Edit", "input": {"file_path": "/work/app.py", "old_string": "return 'hi'", "new_string": "return 'hello'"}}
+{"type": "tool_result", "name": "Edit", "output": "edited"}
+{"type": "tool", "name": "Bash", "input": {"command": "cat /work/app.py"}}
+{"type": "tool_result", "name": "Bash", "output": "def greet():\n    return 'hello'"}
+{"type": "say", "say": "completion_result", "text": "Changed the greeting to 'hello'."}
+{"type": "run_result", "ts": 99, "finishReason": "stop", "iterations": 4, "durationMs": 12000, "usage": {"inputTokens": 1000, "outputTokens": 50}, "text": "done"}

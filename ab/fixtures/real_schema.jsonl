@@ -1,0 +1,5 @@
+{"type": "hook_event", "hookEventName": "PreToolUse", "ts": 1, "taskId": "t", "agentId": "a"}
+{"type": "agent_event", "ts": 2, "event": {"name": "editor", "input": {"path": "hello.txt", "new_text": "Hello, World!"}}}
+{"type": "agent_event", "ts": 3, "event": {"name": "Read", "input": {"file_path": "/work/hello.txt"}}}
+{"type": "agent_event", "ts": 4, "event": {"name": "Bash", "input": {"command": "cat /work/hello.txt", "description": "verify"}}}
+{"type": "run_result", "ts": 5, "finishReason": "stop", "iterations": 3, "text": "Done."}

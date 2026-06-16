@@ -1,0 +1,58 @@
+[
+  {
+    "id": "expr-eval",
+    "name": "Recursive-descent calculator with precedence",
+    "prompt": "Implement the function `evaluate(expr)` in calc.py so that `python3 check.py` passes. It must evaluate arithmetic expressions over integers with the binary operators + - * / (standard precedence: * and / bind tighter than + and -), parentheses, and unary minus. Whitespace is insignificant. Division is real (float) division. Only edit calc.py.",
+    "timeout": 300,
+    "template": {
+      "calc.py": "def evaluate(expr):\n    raise NotImplementedError\n",
+      "check.py": "from calc import evaluate\n\ncases = {\n    '1+2*3': 7,\n    '(1+2)*3': 9,\n    '2*3+4*5': 26,\n    '10/2/5': 1,\n    '-3+5': 2,\n    '-(3+4)': -7,\n    '2*-3': -6,\n    '((1+2)*(3+4))': 21,\n    '1+2+3+4': 10,\n    '3*(4+5*(2-1))': 27,\n    '-2*-3': 6,\n    '2 * ( 3 + 4 )': 14,\n}\nfor e, v in cases.items():\n    r = evaluate(e)\n    assert abs(r - v) < 1e-9, f'{e!r} -> {r}, want {v}'\nprint('ok')\n"
+    },
+    "expect_files": ["calc.py"],
+    "expect_contains": [],
+    "expect_absent": [{ "file": "calc.py", "absent": "NotImplementedError" }],
+    "verify_cmd": "python3 check.py"
+  },
+  {
+    "id": "csv-parse",
+    "name": "RFC4180 quoted-CSV field parser",
+    "prompt": "Implement the function `parse_line(line)` in csvlib.py so that `python3 check.py` passes. It parses one CSV record into a list of field strings. Fields are comma-separated. A field may be wrapped in double quotes; inside a quoted field a comma is a literal comma and a doubled quote \"\" is a literal double-quote character. Only edit csvlib.py.",
+    "timeout": 300,
+    "template": {
+      "csvlib.py": "def parse_line(line):\n    raise NotImplementedError\n",
+      "check.py": "from csvlib import parse_line\n\ncases = [\n    ('a,b,c', ['a', 'b', 'c']),\n    ('a,\"b,c\",d', ['a', 'b,c', 'd']),\n    ('\"she said \"\"hi\"\"\",x', ['she said \"hi\"', 'x']),\n    ('', ['']),\n    ('a,,c', ['a', '', 'c']),\n    ('\"\",x', ['', 'x']),\n    ('\"a\"\"b\"\"c\"', ['a\"b\"c']),\n    ('hello,\"world, again\",ok', ['hello', 'world, again', 'ok']),\n]\nfor inp, want in cases:\n    got = parse_line(inp)\n    assert got == want, f'{inp!r} -> {got!r}, want {want!r}'\nprint('ok')\n"
+    },
+    "expect_files": ["csvlib.py"],
+    "expect_contains": [],
+    "expect_absent": [{ "file": "csvlib.py", "absent": "NotImplementedError" }],
+    "verify_cmd": "python3 check.py"
+  },
+  {
+    "id": "multi-bug-ledger",
+    "name": "Fix three independent bugs so the suite passes",
+    "prompt": "Running `python3 test_ledger.py` fails. There are three independent bugs in ledger.py. Find and fix all of them so every assertion passes. Do NOT modify test_ledger.py.",
+    "timeout": 300,
+    "template": {
+      "ledger.py": "class Ledger:\n    def __init__(self):\n        self.balance = 0\n        self.history = []\n\n    def deposit(self, amt):\n        if amt < 0:\n            raise ValueError('negative')\n        self.balance += amt\n        self.history.append(('deposit', amt))\n\n    def withdraw(self, amt):\n        self.balance -= amt\n        self.history.append(('withdraw', amt))\n\n    def balance_after(self, n):\n        b = 0\n        for op, amt in self.history[:n - 1]:\n            b += amt if op == 'deposit' else -amt\n        return b\n\n    def total_deposited(self):\n        return sum(amt for op, amt in self.history)\n",
+      "test_ledger.py": "from ledger import Ledger\n\nl = Ledger()\nl.deposit(100)\nl.deposit(50)\nl.withdraw(30)\nassert l.balance == 120, l.balance\n\n# bug 1: withdrawing more than the balance must raise and not change state\ntry:\n    l.withdraw(1000)\n    assert False, 'overdraft was not rejected'\nexcept ValueError:\n    pass\nassert l.balance == 120, l.balance\nassert len(l.history) == 3, len(l.history)\n\n# bug 2: balance_after(n) = net of the FIRST n operations (+100, +50) = 150\nassert l.balance_after(2) == 150, l.balance_after(2)\n\n# bug 3: total_deposited counts deposits only = 150\nassert l.total_deposited() == 150, l.total_deposited()\n\nprint('all tests passed')\n"
+    },
+    "expect_files": ["ledger.py"],
+    "expect_contains": [],
+    "expect_absent": [],
+    "verify_cmd": "python3 test_ledger.py"
+  },
+  {
+    "id": "refactor-flat-matrix",
+    "name": "Refactor internal representation, keep tests green",
+    "prompt": "Refactor the Matrix class in matrix.py so it stores its data in a single flat list assigned to `self._data` (length rows*cols, row-major) instead of the current nested list-of-lists `self._rows`. Update every method accordingly. The public API must be unchanged and `python3 test_matrix.py` must still pass. The name `_rows` must not appear anywhere in matrix.py after your change. Do NOT modify test_matrix.py.",
+    "timeout": 300,
+    "template": {
+      "matrix.py": "class Matrix:\n    def __init__(self, rows, cols, fill=0):\n        self.rows = rows\n        self.cols = cols\n        self._rows = [[fill] * cols for _ in range(rows)]\n\n    def get(self, r, c):\n        return self._rows[r][c]\n\n    def set(self, r, c, v):\n        self._rows[r][c] = v\n\n    def row_sum(self, r):\n        return sum(self._rows[r])\n\n    def col_sum(self, c):\n        return sum(self._rows[r][c] for r in range(self.rows))\n\n    def transpose(self):\n        m = Matrix(self.cols, self.rows)\n        for r in range(self.rows):\n            for c in range(self.cols):\n                m.set(c, r, self.get(r, c))\n        return m\n",
+      "test_matrix.py": "from matrix import Matrix\n\nm = Matrix(2, 3)\nm.set(0, 0, 1)\nm.set(0, 2, 3)\nm.set(1, 1, 5)\nassert m.get(0, 0) == 1\nassert m.get(0, 2) == 3\nassert m.get(1, 1) == 5\nassert m.get(1, 0) == 0\nassert m.row_sum(0) == 4, m.row_sum(0)\nassert m.col_sum(2) == 3, m.col_sum(2)\nt = m.transpose()\nassert t.rows == 3 and t.cols == 2\nassert t.get(2, 0) == 3, t.get(2, 0)\nassert t.get(1, 1) == 5, t.get(1, 1)\nprint('all tests passed')\n"
+    },
+    "expect_files": ["matrix.py"],
+    "expect_contains": [{ "file": "matrix.py", "contains": "_data" }],
+    "expect_absent": [{ "file": "matrix.py", "absent": "_rows" }],
+    "verify_cmd": "python3 test_matrix.py"
+  }
+]
