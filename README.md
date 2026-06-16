@@ -23,7 +23,7 @@ Models: **Kimi K2.6** and **K2.7** via Fireworks.
 
 6 prompts × 2 models, same 8 `psf/requests` instances, swapping only the agent
 system prompt. `default` = opencode's built-in coding prompt; the other five use
-[modified system prompts to match opencode's toolset](system-prompts/README.md).
+[modified system prompts to match opencode's toolset](system-prompts/).
 
 | prompt | K2.6 | K2.7 | source |
 |--------|------|------|--------|
