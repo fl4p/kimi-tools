@@ -11,6 +11,14 @@ real GitHub issues, scored by the official
 `swebench.harness.run_evaluation` (hidden FAIL_TO_PASS / PASS_TO_PASS tests).
 Models: **Kimi K2.6** and **K2.7** via Fireworks.
 
+> **Note — Fireworks + Kimi thinking mode.** `kimi-k2p7-code` (K2.7) is a
+> reasoning model; `kimi-k2p6` (K2.6) is not. On Fireworks, **run K2.7 with
+> thinking left ON** — in an endpoint micro-benchmark, *disabling* reasoning on
+> the `-code` model blew up time-to-first-token to **~26 s** (vs **~0.5 s** with
+> it on) and the model emitted reasoning tokens anyway, so turning it off bought
+> nothing and cost a lot. K2.6 is unaffected — ~0.4 s TTFT and ~106 tok/s either
+> way. Every run here uses K2.7 in its native thinking mode.
+
 ## Headline result — system-prompt bake-off
 
 6 prompts × 2 models, same 8 `psf/requests` instances, swapping only the agent
