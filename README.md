@@ -5,8 +5,9 @@ agents, does the system prompt actually change task success — and which prompt
 is best?**
 
 It runs real coding-agent system prompts (Claude Code, Codex, Cursor, Cline, and
-two Kimi-tuned ones) through the **opencode** harness against **SWE-bench
-Verified** real GitHub issues, scored by the official
+two Kimi-tuned ones) through the **opencode** harness against
+[**SWE-bench Verified**](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified)
+real GitHub issues, scored by the official
 `swebench.harness.run_evaluation` (hidden FAIL_TO_PASS / PASS_TO_PASS tests).
 Models: **Kimi K2.6** and **K2.7** via Fireworks.
 
