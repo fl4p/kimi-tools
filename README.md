@@ -22,15 +22,8 @@ Models: **Kimi K2.6** and **K2.7** via Fireworks.
 ## Headline result — system-prompt bake-off
 
 6 prompts × 2 models, same 8 `psf/requests` instances, swapping only the agent
-system prompt. `default` = opencode's built-in coding prompt.
-
-> The five non-default prompts were each written for a different harness, so we
-> **adapted them to opencode's toolset** — remapping their tool references to
-> opencode's `bash`/`read`/`edit`/`write`/`grep`/`glob` (and the camelCase
-> params: `filePath`, `oldString`/`newString`, …) — before running. Each lives
-> alongside its raw extract as a `*.oc-adapted.md` file under
-> [`system-prompts/`](system-prompts/); that adapted copy is what the bake-off
-> runs. Wording and stance are kept verbatim; only the tool names/shapes change.
+system prompt. `default` = opencode's built-in coding prompt; the other five use
+[modified system prompts to match opencode's toolset](system-prompts/README.md).
 
 | prompt | K2.6 | K2.7 | source |
 |--------|------|------|--------|
