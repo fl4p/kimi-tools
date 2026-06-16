@@ -38,6 +38,23 @@ Cost columns are **per-instance, averaged across both models** (n=8 each); the
 full per-model split is in [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md). Latency is
 noisy local wall-clock — read the relative ordering, not the absolute seconds.
 
+📊 **[Sortable version](https://htmlpreview.github.io/?https://github.com/fl4p/kimi-tools/blob/main/ab/bake-off.html)**
+— the full 12-row per-model table ([`ab/bake-off.html`](ab/bake-off.html)) with
+click-to-sort columns. (GitHub READMEs can't run JS, so the sortable view is a
+standalone page.)
+
+**Per-model averages** (across all 6 prompts, per-instance):
+
+| model | avg latency | avg tokens | avg tools |
+|-------|-------------|------------|-----------|
+| K2.6  | 115s | 655k | 23.9 |
+| K2.7  | 174s | 683k | 26.2 |
+
+Across the whole prompt set K2.7 averaged slower and did slightly more work — the
+reverse of the `default`-only slice (where K2.7 was faster) — yet the two models
+**tie on what they resolve**. Latency is noisy, so read this as "comparable work,
+no capability gap," not a clean speed ranking.
+
 **Two clean families:**
 
 1. **Harness-/terseness-tuned prompts regress** (`sharp`, `cursor`) — they were
