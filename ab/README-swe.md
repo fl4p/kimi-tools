@@ -62,6 +62,31 @@ python3 -m venv /tmp/swebench-venv && /tmp/swebench-venv/bin/pip install swebenc
 The run writes `<model>.<run_id>.json` with `resolved_instances` — that count /
 total is the metric that can finally separate K2.6 from K2.7 (if anything can).
 
+## Running on a server (recommended)
+
+SWE-bench's images are x86-64, so an **x86-64 Linux box with native Docker** is
+the ideal host — no colima/Rosetta, far fewer flakes, and you can predict wide.
+The `server/` kit makes it turn-key:
+
+```bash
+git clone https://github.com/fl4p/kimi-tools && cd kimi-tools
+FIREWORKS_API_KEY=fw_... bash ab/server/setup.sh   # venv+swebench, opencode, auth
+tmux new -s bench                                  # survive SSH drops!
+VENV=$HOME/swebench-venv bash ab/server/run_all.sh # predict (parallel) -> eval
+```
+
+- **`setup.sh`** — installs swebench (venv), opencode, writes the Fireworks key to
+  opencode's `auth.json` (chmod 600; key from `$FIREWORKS_API_KEY`, never committed).
+- **`run_all.sh`** — runs the 8 arms' predict at `CONCURRENCY` (default 8) via
+  `xargs -P`, then `eval_runner.py` sequentially. Tunables (env): `CONCURRENCY`,
+  `WORKERS` (eval), `MIN_FREE_GB` (disk guard), `DOCKER_HOST` (rootless socket),
+  `INSTANCES`, `OUT`.
+- **Disk guard**: a near-full Docker root is the main risk — eval images are tens
+  of GB. `eval_runner.py --min-free-gb N` aborts before an arm if free space drops
+  below N GB. Prune first (`docker system prune`) and watch `df -h`.
+- **Rootless Docker**: if `docker info` shows a Docker Root under `$HOME`, set
+  `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock` so swebench's SDK connects.
+
 ## Status / caveats
 - Predict harness: mechanics verified (mirror + materialize + patch extraction).
 - The bottleneck is wall-clock: K2.7 ~15–25 min/instance, so a 15-instance ×

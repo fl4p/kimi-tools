@@ -22,8 +22,12 @@ Usage:
 Writes <report-dir>/summary.json with per-arm resolved counts (raw + after
 flake re-eval) and the list of instances reclassified as flakes.
 """
-import argparse, glob, json, os, subprocess, sys
+import argparse, glob, json, os, shutil, subprocess, sys
 from pathlib import Path
+
+
+def free_gb(path):
+    return shutil.disk_usage(path).free / 1e9
 
 NET_SIGNATURES = ["502", "503", "Bad Gateway", "ConnectionError",
                   "JSONDecodeError", "Max retries", "ConnectTimeout"]
@@ -74,11 +78,25 @@ def main():
     ap.add_argument("--arm", nargs=2, action="append", metavar=("NAME", "PREDS"),
                     required=True, help="arm name + predictions JSONL (repeatable)")
     ap.add_argument("--no-flake-reeval", action="store_true")
+    ap.add_argument("--min-free-gb", type=float, default=0,
+                    help="abort before an arm if the disk has less than this many GB "
+                         "free (guards a near-full Docker root). 0 = off.")
+    ap.add_argument("--disk-path", default="/",
+                    help="filesystem to watch for --min-free-gb (the Docker root's mount)")
     args = ap.parse_args()
     report_dir = Path(args.report_dir); report_dir.mkdir(parents=True, exist_ok=True)
 
     summary = {}
     for name, preds in args.arm:                     # SEQUENTIAL — no contention
+        if args.min_free_gb:
+            avail = free_gb(args.disk_path)
+            print(f"  [disk] {avail:.1f}G free on {args.disk_path}", flush=True)
+            if avail < args.min_free_gb:
+                print(f"ABORT: only {avail:.1f}G free < --min-free-gb {args.min_free_gb}. "
+                      f"Stopping before {name} to protect the box. "
+                      f"Free space or `docker system prune`, then resume with the "
+                      f"remaining arms.", flush=True)
+                break
         run_id = f"new_{name}"
         print(f"\n===== EVAL {name} ({preds}) =====", flush=True)
         resolved, submitted = run_eval(preds, run_id, report_dir, args.workers)
