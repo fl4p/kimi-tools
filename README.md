@@ -31,7 +31,7 @@ system prompt. `default` = opencode's built-in coding prompt; the other five use
 | sharp | 2/8 | 4/8 | Kimi tool-hygiene-tuned |
 | cursor | 3/8 | 4/8 | Cursor Composer (leak) |
 | codex-coding | 7/8 | 6/8 | OpenAI Codex `base_instructions` |
-| **claude-code** \* | 7/8 | **8/8** | Claude Code interactive CLI |
+| **claude-code** | 7/8 | **8/8** | Claude Code interactive CLI |
 | cline (native-next-gen) | 7/8 | 7/8 | Cline default |
 
 **Two clean families:**
