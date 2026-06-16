@@ -15,7 +15,13 @@ echo "  docker root: $(docker info 2>/dev/null | awk -F': ' '/Docker Root Dir/{p
 echo "  free on /  : $(df -h --output=avail / | tail -1 | tr -d ' ')"
 
 echo "[2/5] python venv + swebench -> $VENV"
-python3 -m venv "$VENV"
+# Stock Ubuntu often lacks python3-venv's ensurepip and there's no sudo here, so
+# create the venv without pip and bootstrap it with get-pip.py (no apt needed).
+rm -rf "$VENV"
+python3 -m venv --without-pip "$VENV"
+if ! "$VENV/bin/python" -m pip --version >/dev/null 2>&1; then
+  curl -sSL https://bootstrap.pypa.io/get-pip.py | "$VENV/bin/python"
+fi
 "$VENV/bin/pip" -q install --upgrade pip
 "$VENV/bin/pip" -q install swebench
 
