@@ -1,40 +1,67 @@
-# Kimi (K2.7) system prompts for the cline harness
+# kimi-tools
 
-Two `--system` override prompts tuned for **Kimi K2.7** running coding tasks in
-the cline CLI. Both are self-contained (no `{{PLACEHOLDER}}` tokens), so they
-work directly as overrides — cline returns a `--system` file verbatim and does
-not substitute placeholders or inject rules/metadata.
+A small benchmark that answers one practical question: **for Kimi K2 coding
+agents, does the system prompt actually change task success — and which prompt
+is best?**
 
-| File | Use |
-|------|-----|
-| [`kimi.system-prompt.md`](system-prompts/kimi-cline/kimi.system-prompt.md) | **Balanced default.** Decisive and proactive, but asks when genuinely blocked. Numeric (3+ action) planning trigger. |
-| [`kimi-autonomous.system-prompt.md`](system-prompts/kimi-cline/kimi-autonomous.system-prompt.md) | **Autonomous.** Dials autonomy up per [`system-prompts/cline/autonomous.system-prompt.md`](system-prompts/cline/autonomous.system-prompt.md): decide-and-proceed, never ask for permission on reversible steps, verify-before-done, only stop when truly blocked. |
+It runs real coding-agent system prompts (Claude Code, Codex, Cursor, Cline, and
+two Kimi-tuned ones) through the **opencode** harness against **SWE-bench
+Verified** real GitHub issues, scored by the official
+`swebench.harness.run_evaluation` (hidden FAIL_TO_PASS / PASS_TO_PASS tests).
+Models: **Kimi K2.6** and **K2.7** via Fireworks.
+
+## Headline result — system-prompt bake-off
+
+6 prompts × 2 models, same 8 `psf/requests` instances, swapping only the agent
+system prompt. `default` = opencode's built-in coding prompt.
+
+| prompt | K2.6 | K2.7 | source |
+|--------|------|------|--------|
+| **default** (opencode) | 6/8 | 6/8 | opencode built-in |
+| sharp | 2/8 | 4/8 | Kimi tool-hygiene-tuned |
+| cursor | 3/8 | 4/8 | Cursor Composer (leak) |
+| codex-coding | 7/8 | 6/8 | OpenAI Codex `base_instructions` |
+| **claude-code** | 7/8 | **8/8** | Claude Code interactive CLI |
+| cline (native-next-gen) | 7/8 | 7/8 | Cline default |
+
+**Two clean families:**
+
+1. **Harness-/terseness-tuned prompts regress** (`sharp`, `cursor`) — they were
+   tuned for tool-hygiene metrics or a different UI, and on real tasks they trade
+   correctness for concision.
+2. **Real general coding-agent prompts match or beat the default**
+   (`codex-coding`, `claude-code`, `cline`) — all land at 7–8/8. They were built
+   to drive a read→edit→verify loop on real repos, so they transfer even after
+   tool-name adaptation.
+
+**Takeaways:** `claude-code` on K2.7 is the only arm to hit **8/8**, helped by its
+"edit the source, don't stop at analysis" discipline. `codex-coding` is the
+**efficiency winner** (best/tied resolved at the fewest tokens + tool calls). And
+across every run, **K2.6 ≈ K2.7 on what they can solve** — they differ only in
+latency/cost/failure-shape, not capability, at this difficulty band.
+
+→ Full tables, cost profiles, the sharp-prompt regression, and caveats:
+**[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md)**.
+
+## Repo layout
+
+| Path | What |
+|------|------|
+| [`ab/`](ab/) | The benchmark harnesses (cline, opencode, pi) + `swe_bench.py` predict/eval + all `FINDINGS-*.md`. |
+| [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md) | The SWE-bench results above, in full. |
+| [`ab/README.md`](ab/README.md) | How to run the A/B harness. |
+| [`ab/README-swe.md`](ab/README-swe.md) | How to run the SWE-bench predict + eval pipeline. |
+| [`system-prompts/`](system-prompts/) | Every prompt the bake-off runs — `claude-code/`, `codex/`, `cursor/`, `cline/`, `kimi/`, `sharp.md`, plus our own `kimi-cline/`. Each external one keeps the raw extract and an `.oc-adapted.md` opencode port. |
+| [`system-prompts/kimi-cline/`](system-prompts/kimi-cline/) | **Our two Kimi-tuned cline prompts** (balanced + autonomous) — see [its README](system-prompts/kimi-cline/README.md). |
+
+## Quick start
 
 ```bash
-cline --system system-prompts/kimi-cline/kimi.system-prompt.md
-cline --system system-prompts/kimi-cline/kimi-autonomous.system-prompt.md
+# A/B harness, no API needed — prove the pipeline works:
+cd ab && python3 ab_bench.py --self-test && python3 ab_bench.py --dry-run
+
+# SWE-bench predict (opencode + Kimi via Fireworks):
+python3 ab/swe_bench.py predict --model k2.7 --repos psf/requests --out preds.jsonl
 ```
 
-## Why these exist
-
-cline classifies `kimi-k2` as a next-gen model and the VS Code extension would
-hand it the [`system-prompts/cline/nextgen/`](system-prompts/cline/nextgen/) variant. But the CLI
-launcher injects `--system`, which **replaces** that variant selection. Kimi
-then gets the CLI's default headless toolset — including the array-shaped
-`run_commands` tool, which Kimi (a weak tool caller) calls with an empty
-`{commands: []}`, gets `[]` back, and loops.
-
-These prompts fix that by steering Kimi to the **single-value, claude-compat
-tools** (`Bash`, `Read`, `Edit`, `search_codebase`, `ask_question`, `Monitor`,
-`PushNotification`, `TaskStop`, `TaskList`) and documenting each one in Kimi's
-verbose house style (required params → failure mode → recovery → worked
-example). The harness still injects the real tool *schemas*; this prompt's job
-is to make Kimi choose and shape the calls correctly.
-
-## What they draw on
-
-- [`system-prompts/cline/nextgen/native-next-gen.system-prompt.md`](system-prompts/cline/nextgen/native-next-gen.system-prompt.md) — the cline identity and the "schemas delivered separately" model.
-- [`system-prompts/cline/autonomous.system-prompt.md`](system-prompts/cline/autonomous.system-prompt.md) — the autonomy stance (the autonomous variant leans on it directly).
-- [`system-prompts/sharp.md`](system-prompts/sharp.md) — small-sharp-toolset framing, git rules, `AGENTS.md`/`CLAUDE.md` honoring, context-management note.
-- [`system-prompts/kimi/desktop-3.0.19/desktop-AGENTS.md`](system-prompts/kimi/desktop-3.0.19/desktop-AGENTS.md) — the untrusted-data / refuse-vs-confirm security layer.
-- [`system-prompts/kimi/ok-computer.md`](system-prompts/kimi/ok-computer.md) — Kimi's voice/cadence (style reference only; we do **not** advertise tools Kimi lacks).
+See [`ab/README-swe.md`](ab/README-swe.md) for the colima/Docker eval setup.
