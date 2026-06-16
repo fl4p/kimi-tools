@@ -295,21 +295,34 @@ def cmd_predict(args):
     preds, metas = [], []
     with open(out, "w") as fh:
         for i, inst in enumerate(insts, 1):
-            try:
-                pred, meta = predict_one(inst, args.model, bin_,
-                                         args.timeout, logs, agent_prompt,
-                                         backend=args.backend)
-            except Exception as e:  # noqa: BLE001 — one bad repo shouldn't kill the run
-                meta = {"instance_id": inst["instance_id"], "error": f"harness:{e}",
-                        "empty_patch": True}
-                pred = {"instance_id": inst["instance_id"],
-                        "model_name_or_path": f"{label_prefix}-{args.model}", "model_patch": ""}
+            iid = inst["instance_id"]
+            pred = meta = None
+            # HARDENING: retry empty/hung results. A predict that times out or
+            # hangs on the Fireworks call yields an empty patch (e.g. requests-6028);
+            # without a retry that instance is silently lost. A non-empty patch is
+            # accepted on the first attempt — we only retry failures.
+            for attempt in range(1, args.retries + 2):
+                try:
+                    pred, meta = predict_one(inst, args.model, bin_,
+                                             args.timeout, logs, agent_prompt,
+                                             backend=args.backend)
+                except Exception as e:  # noqa: BLE001 — one bad repo shouldn't kill the run
+                    meta = {"instance_id": iid, "error": f"harness:{e}", "empty_patch": True}
+                    pred = {"instance_id": iid,
+                            "model_name_or_path": f"{label_prefix}-{args.model}", "model_patch": ""}
+                meta["attempts"] = attempt
+                if not meta.get("empty_patch") or attempt > args.retries:
+                    break
+                why = "timeout/hang" if meta.get("error") == "timeout" else "empty patch"
+                print(f"  [{i}/{len(insts)}] {iid:<28} retry {attempt}/{args.retries} ({why})",
+                      file=sys.stderr)
             fh.write(json.dumps(pred) + "\n")
             fh.flush()
             preds.append(pred)
             metas.append(meta)
             tag = "EMPTY" if meta.get("empty_patch") else f"{meta.get('patch_bytes','?')}B"
-            print(f"  [{i}/{len(insts)}] {meta['instance_id']:<28} {tag:>7} "
+            atag = f"x{meta['attempts']}" if meta.get("attempts", 1) > 1 else ""
+            print(f"  [{i}/{len(insts)}] {iid:<28} {tag:>7} {atag:<3} "
                   f"{meta.get('duration_s','?')}s {meta.get('error') or ''}",
                   file=sys.stderr)
     (out.with_suffix(".meta.json")).write_text(json.dumps(metas, indent=2))
@@ -416,6 +429,10 @@ def main():
     pp.add_argument("--out", required=True, help="predictions JSONL path")
     pp.add_argument("--bin", help="agent binary (default: opencode or codex per --backend)")
     pp.add_argument("--timeout", type=int, default=600, help="per-instance seconds")
+    pp.add_argument("--retries", type=int, default=1,
+                    help="retry an instance this many times if it yields an empty/hung "
+                         "patch (default 1 = up to 2 attempts). Guards against Fireworks "
+                         "call hangs that would otherwise lose the instance.")
     pp.add_argument("--agent-prompt", help="custom system prompt file (e.g. sharp.md); "
                     "seeds an opencode.json custom agent. Omit = opencode default prompt.")
     pp.add_argument("--save-logs", help="dir for raw opencode json per instance")
