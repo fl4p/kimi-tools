@@ -21,8 +21,11 @@ STAGE="${STAGE:-all}"     # predict | eval | all — split phases (e.g. predict 
 CLAUDE="$SP/claude-code/2.1.178/interactive-cli.oc-adapted.md"
 KCBAL="$SP/kimi-cline/kimi.system-prompt.oc-adapted.md"
 KCAUTO="$SP/kimi-cline/kimi-autonomous.system-prompt.oc-adapted.md"
-for f in "$CLAUDE" "$KCBAL" "$KCAUTO"; do [ -f "$f" ] || { echo "MISSING PROMPT: $f"; exit 2; }; done
+CURSOR="$SP/cursor/cursor.oc-adapted.md"
+SHARP="$SP/sharp.md"
+for f in "$CLAUDE" "$KCBAL" "$KCAUTO" "$CURSOR" "$SHARP"; do [ -f "$f" ] || { echo "MISSING PROMPT: $f"; exit 2; }; done
 
+# Full 6-prompt bake-off x 2 models = 12 arms.
 ARMS="default_k26 k2.6 NONE
 default_k27 k2.7 NONE
 claude_k26 k2.6 $CLAUDE
@@ -30,14 +33,19 @@ claude_k27 k2.7 $CLAUDE
 kcbal_k26 k2.6 $KCBAL
 kcbal_k27 k2.7 $KCBAL
 kcauto_k26 k2.6 $KCAUTO
-kcauto_k27 k2.7 $KCAUTO"
+kcauto_k27 k2.7 $KCAUTO
+cursor_k26 k2.6 $CURSOR
+cursor_k27 k2.7 $CURSOR
+sharp_k26 k2.6 $SHARP
+sharp_k27 k2.7 $SHARP"
+ARM_NAMES="default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27 cursor_k26 cursor_k27 sharp_k26 sharp_k27"
 
 if [ "$STAGE" = predict ] || [ "$STAGE" = all ]; then
   echo "===== PREDICT (concurrency $CONCURRENCY) ====="
   rm -f "$OUT/logs/_progress.txt"
   echo "$ARMS" | xargs -P "$CONCURRENCY" -L 1 bash "$HERE/predict_arm.sh"
   echo "predict done. per-arm patch counts:"
-  for a in default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27; do
+  for a in $ARM_NAMES; do
     n=$(grep -cE '[0-9]+B|EMPTY' "$OUT/logs/$a.out" 2>/dev/null || echo 0); echo "  $a: $n"
   done
 fi
@@ -45,7 +53,7 @@ fi
 if [ "$STAGE" = eval ] || [ "$STAGE" = all ]; then
   echo "===== EVAL (sequential, workers=$WORKERS, min-free=${MIN_FREE_GB}G) ====="
   EVAL_ARMS=()
-  for a in default_k26 default_k27 claude_k26 claude_k27 kcbal_k26 kcbal_k27 kcauto_k26 kcauto_k27; do
+  for a in $ARM_NAMES; do
     EVAL_ARMS+=(--arm "$a" "$OUT/preds_${a}.jsonl")
   done
   "$PY" "$AB/eval_runner.py" --report-dir "$OUT/eval" \
