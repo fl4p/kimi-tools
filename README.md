@@ -25,14 +25,18 @@ Models: **Kimi K2.6** and **K2.7** via Fireworks.
 system prompt. `default` = opencode's built-in coding prompt; the other five use
 (modified) [system prompts](system-prompts/).
 
-| prompt | K2.6 | K2.7 | source |
-|--------|------|------|--------|
-| **default** (opencode) | 6/8 | 6/8 | opencode built-in |
-| sharp | 2/8 | 4/8 | Kimi tool-hygiene-tuned |
-| cursor | 3/8 | 4/8 | Cursor Composer (leak) |
-| codex-coding | 7/8 | 6/8 | OpenAI Codex `base_instructions` |
-| **claude-code** | 7/8 | **8/8** | Claude Code interactive CLI |
-| cline (native-next-gen) | 7/8 | 7/8 | Cline default |
+| prompt | K2.6 | K2.7 | avg latency | avg tokens | avg tools | source |
+|--------|------|------|-------------|------------|-----------|--------|
+| **default** (opencode) | 6/8 | 6/8 | 84s | 730k | 25.3 | opencode built-in |
+| sharp | 2/8 | 4/8 | 87s | 591k | 24.2 | Kimi tool-hygiene-tuned |
+| cursor | 3/8 | 4/8 | 202s | 783k | 26.7 | Cursor Composer (leak) |
+| codex-coding | 7/8 | 6/8 | 126s | 562k | **21.7** | OpenAI Codex `base_instructions` |
+| **claude-code** | 7/8 | **8/8** | 151s | 626k | 24.0 | Claude Code interactive CLI |
+| cline (native-next-gen) | 7/8 | 7/8 | 218s | 725k | 28.6 | Cline default |
+
+Cost columns are **per-instance, averaged across both models** (n=8 each); the
+full per-model split is in [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md). Latency is
+noisy local wall-clock — read the relative ordering, not the absolute seconds.
 
 **Two clean families:**
 
