@@ -163,6 +163,13 @@ calls the agent made. Averaged over the 8 psf/requests instances per arm.
 | cline        | K2.6 | 7/8 | 140s | 541k | 25.9 |
 | cline        | K2.7 | 7/8 | 295s | 908k | 31.2 |
 
+![Avg latency per instance, by prompt × model](charts/cost-latency.svg)
+
+![Avg tokens per instance, by prompt × model](charts/cost-tokens.svg)
+
+<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG; data mirrors the
+table above). Blue = K2.6, orange = K2.7.</sub>
+
 What the cost columns add on top of the resolved-rate story:
 
 - **`codex-coding` is the efficiency winner**: best/tied-best resolved rate at the
