@@ -63,8 +63,11 @@ def failure_is_network(report_dir, run_id, iid):
     cands = glob.glob(f"{report_dir}/logs/run_evaluation/{run_id}/*/{iid}/test_output.txt")
     if not cands:
         return False
+    repf = Path(cands[0]).parent / "report.json"
+    if not repf.exists():
+        return False   # errored / timed-out instance (no report) — a real failure, not a recoverable flake
     out = open(cands[0]).read()
-    rep = json.load(open(Path(cands[0]).parent / "report.json"))[iid]["tests_status"]
+    rep = json.load(open(repf))[iid]["tests_status"]
     f2p_fail = rep["FAIL_TO_PASS"]["failure"]
     has_net = any(sig in out for sig in NET_SIGNATURES)
     # flake = the actual fix worked (no FAIL_TO_PASS failures) but a network sig appears
@@ -104,14 +107,17 @@ def main():
         flakes = []
         if not args.no_flake_reeval:
             for iid in unresolved:
-                if patch_is_empty(preds, iid):
-                    continue                          # empty patch = real miss, not a flake
-                if failure_is_network(report_dir, run_id, iid):
-                    print(f"  re-eval (suspected network flake): {iid}", flush=True)
-                    r2, _ = run_eval(preds, f"{run_id}_re", report_dir,
-                                     1, instances=[iid])   # isolated, 1 worker
-                    if iid in r2:
-                        flakes.append(iid)
+                try:
+                    if patch_is_empty(preds, iid):
+                        continue                      # empty patch = real miss, not a flake
+                    if failure_is_network(report_dir, run_id, iid):
+                        print(f"  re-eval (suspected network flake): {iid}", flush=True)
+                        r2, _ = run_eval(preds, f"{run_id}_re", report_dir,
+                                         1, instances=[iid])   # isolated, 1 worker
+                        if iid in r2:
+                            flakes.append(iid)
+                except Exception as e:                # one bad instance must not abort the run
+                    print(f"  flake-check skipped for {iid}: {e}", flush=True)
         resolved_final = set(resolved) | set(flakes)
         summary[name] = {
             "resolved_raw": len(resolved), "submitted": len(submitted),
