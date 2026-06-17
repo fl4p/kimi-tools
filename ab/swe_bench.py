@@ -215,6 +215,14 @@ def predict_one(inst: dict, model_key: str, opencode_bin: str, timeout: int,
                 (wd / "opencode.json").write_text(json.dumps(cfg, indent=2))
                 cmd += ["--agent", CUSTOM_AGENT]
             cmd += [prompt]
+        # HARDENING: agents often `pip install -e .` / install deps to run the
+        # repo's tests. Without isolation that lands in the HOST's ~/.local
+        # (--user / --break-system-packages) and persists. PYTHONUSERBASE
+        # redirects user-site into the throwaway workdir, which is rmtree'd below,
+        # so nothing pollutes the host. PIP_CACHE_DIR keeps cache local too.
+        env = {**os.environ,
+               "PYTHONUSERBASE": str(wd / ".pyuserbase"),
+               "PIP_CACHE_DIR": str(wd / ".pipcache")}
         start = time.perf_counter()
         err = None
         try:
@@ -224,7 +232,7 @@ def predict_one(inst: dict, model_key: str, opencode_bin: str, timeout: int,
             # stdin=DEVNULL: codex exec otherwise blocks "Reading additional input
             # from stdin..." when stdin isn't a TTY. Harmless for opencode.
             proc = subprocess.run(cmd, capture_output=True, text=True,
-                                  timeout=timeout, cwd=str(wd),
+                                  timeout=timeout, cwd=str(wd), env=env,
                                   stdin=subprocess.DEVNULL)
             stdout, stderr, rc = proc.stdout, proc.stderr, proc.returncode
             if rc != 0:
