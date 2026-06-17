@@ -228,6 +228,35 @@ some eval-VM contention) — read them as directional only.
 Separating those would need ~50–100 instances across the hard django/sympy/sklearn
 band with pass@k.
 
+## Our kimi-cline prompts on requests + the httpbin-flake lesson
+
+The two `kimi-cline` prompts (balanced + autonomous, `.oc-adapted`) were also run
+on the 8 `psf/requests` instances × both models:
+
+| arm | balanced | autonomous |
+|-----|----------|------------|
+| K2.6 | 8/8 | 7/8 (1 empty patch) |
+| K2.7 | 8/8\* | 8/8 |
+
+\* `k27_kimicline` scored **5/8 raw** but is really **8/8**: digging into the three
+"failures" showed all were **infrastructure, not the model**. `requests`'s test
+suite makes real `httpbin` calls in *both* FAIL_TO_PASS and PASS_TO_PASS tests, so
+under eval-VM contention they flake:
+
+- **1921, 2317** — the model's fix passed *every* FAIL_TO_PASS; a PASS_TO_PASS test
+  failed only on `assert 502 == 200` / a `JSONDecodeError` on a bad httpbin response
+  (2317's patch was byte-identical to gold). Pure network flake.
+- **6028** — predict hung on the Fireworks call → 600 s timeout → empty patch (0-byte
+  transcript). A retry converged in 123 s and the patch resolved.
+
+This is the **lesson that drove the eval hardening**: every resolved count carries
+httpbin-flake noise, which compounds the small-n problem. `eval_runner.py` now runs
+arms **sequentially** (no contention) and **re-evaluates** any unresolved-with-
+network-signature instance in isolation before trusting the verdict; `swe_bench.py
+predict --retries` guards the Fireworks-hang class. Net: the kimi-cline prompts sit
+in the strong cluster on requests (effectively 8/8, 8/8, 7/8, 8/8) — but, as ever at
+n=8, not statistically separable from the other good prompts.
+
 ## Harder-band extension (sympy / sklearn / sphinx / xarray, 16 instances, on a server)
 
 The requests bake-off is all easy/medium pure-Python at n=8. To test whether the
