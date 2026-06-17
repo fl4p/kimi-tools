@@ -228,6 +228,61 @@ some eval-VM contention) — read them as directional only.
 Separating those would need ~50–100 instances across the hard django/sympy/sklearn
 band with pass@k.
 
+## Harder-band extension (sympy / sklearn / sphinx / xarray, 16 instances, on a server)
+
+The requests bake-off is all easy/medium pure-Python at n=8. To test whether the
+verdict holds on harder repos, we ran a second bake-off on **16 instances** from
+sympy / scikit-learn / sphinx / xarray (a blend of the "1–4 hours" and upper
+"15 min–1 h" bands). Same opencode+Kimi harness; the 6 prompts here are `default`,
+`claude-code`, `cursor`, `sharp`, and our two `kimi-cline` prompts (balanced +
+autonomous) — i.e. the kimi-cline pair swapped in for codex/cline.
+
+Run on an **x86-64 Linux server** (native Docker, no colima/Rosetta), which also
+let the agents `pip install` deps and run the repo's `pytest` mid-solve — a verify
+loop the Mac's bare env couldn't support (see the confound below).
+
+| prompt | K2.6 | K2.7 | pooled | avg tools | avg tokens |
+|--------|------|------|--------|-----------|------------|
+| **claude-code** | 14/16 | 14/16 | **28/32** | 36 | 1.08M |
+| default      | 13/16 | 12/16 | 25/32 | 39 | 1.22M |
+| kimi-cline (balanced)   | 12/16 | 13/16 | 25/32 | 43 | 1.34M |
+| kimi-cline (autonomous) | 11/16 | 14/16 | 25/32 | 40 | 1.28M |
+| cursor       | 12/16 | 12/16 | 24/32 | 32 | 1.10M |
+| sharp        | 11/16 | 11/16 | 22/32 | 32 | 0.92M |
+
+**Two findings, one of which revises the requests conclusion:**
+
+1. **`claude-code` is the top arm again** (28/32, both models 14/16). It led on
+   requests and leads here — the most consistent result in the study, though still
+   not individually significant (28 vs 25/32 is ~1 SE).
+
+2. **The "harness-tuned prompts regress" verdict did NOT replicate.** On requests,
+   `sharp` (6/16 pooled) and `cursor` (7/16) cratered far below `default` (12/16) —
+   a real, significant gap. On the harder band they're **on par**: `cursor` 24/32,
+   `sharp` 22/32 vs `default` 25/32 — a 1–3 instance difference, not significant.
+   The whole field compresses into 69–88%. So that regression looks **band-specific**,
+   not a general property of those prompts.
+
+**Heavy caveat — environment confound.** The two bake-offs are NOT a clean A/B of
+difficulty: requests ran on the Mac (bare env, agents couldn't run the repo's
+tests), this ran on a server where agents **could** `pip install` + `pytest` and
+iterate against test feedback. A verify loop helps a weaker prompt catch its own
+mistakes — compressing the spread and lifting the laggards, exactly what we see.
+So the vanished regression is confounded between *harder tasks* and *richer
+environment*; it can't be cleanly attributed. Honest read: **claude-code's lead is
+robust across both bands; the sharp/cursor regression is not.**
+
+Cost note: the harder band costs more everywhere (30–44 tools, ~0.9–1.5M tokens/
+instance vs ~25 / ~0.7M on requests) — bigger repos + test loops. `claude-code` /
+`cursor` / `sharp` are the tool-frugal arms (~32–36); `default` / `kimi-cline` run
+hotter (39–44) with no resolved-rate gain.
+
+Reproducibility: the whole run is driven by `ab/server/` (setup + parallel predict
++ disk-guarded eval). It surfaced — and the harness now fixes — three reliability
+gaps: predict-hang retries (`--retries`), a real concurrency cap (`xargs -P`), and
+confining agent `pip` installs to the throwaway workdir (`PYTHONUSERBASE`) so they
+don't pollute the host.
+
 ## Caveats (why this isn't the final word)
 - **n=8, one repo, easy band.** All requests instances are "<15 min – 1 hour",
   pure-Python. The signal-bearing instances live in django/sympy/sklearn
