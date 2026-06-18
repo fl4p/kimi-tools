@@ -257,54 +257,53 @@ predict --retries` guards the Fireworks-hang class. Net: the kimi-cline prompts 
 in the strong cluster on requests (effectively 8/8, 8/8, 7/8, 8/8) — but, as ever at
 n=8, not statistically separable from the other good prompts.
 
-## Harder-band extension (sympy / sklearn / sphinx / xarray, 16 instances, on a server)
+## Harder-band extension (8 repos, 48 instances, on a server)
 
-The requests bake-off is all easy/medium pure-Python at n=8. To test whether the
-verdict holds on harder repos, we ran a second bake-off on **16 instances** from
-sympy / scikit-learn / sphinx / xarray (a blend of the "1–4 hours" and upper
-"15 min–1 h" bands). Same opencode+Kimi harness; the 6 prompts here are `default`,
-`claude-code`, `cursor`, `sharp`, and our two `kimi-cline` prompts (balanced +
-autonomous) — i.e. the kimi-cline pair swapped in for codex/cline.
+The requests bake-off is all easy/medium pure-Python at n=8. To test whether the verdict
+holds on harder repos at meaningful scale, we ran a second bake-off on **48 instances**
+across 8 repos (sympy / scikit-learn / sphinx / xarray / matplotlib / astropy / pytest /
+django — a blend of the "15 min–1 h" and "1–4 hours" bands). Same opencode+Kimi harness;
+the 6 prompts are `default`, `claude-code`, `cursor`, `sharp`, and our two `kimi-cline`
+prompts (balanced + autonomous). Run on an x86-64 Linux server with native Docker.
 
-Run on an **x86-64 Linux server** (native Docker, no colima/Rosetta), which also
-let the agents `pip install` deps and run the repo's `pytest` mid-solve — a verify
-loop the Mac's bare env couldn't support (see the confound below).
+**5 matplotlib instances are excluded** — their prebuilt eval images carry files owned by
+a UID beyond the host's rootless-docker subuid range, so the layers won't unpack on this
+box (a host constraint, not a model failure). Resolved rates are out of **43**. (Two
+sklearn instances each errored for one arm and are conservatively counted as not-resolved.)
 
-| prompt | K2.6 | K2.7 | pooled | avg tools | avg tokens |
-|--------|------|------|--------|-----------|------------|
-| **claude-code** | 14/16 | 14/16 | **28/32** | 36 | 1.08M |
-| default      | 13/16 | 12/16 | 25/32 | 39 | 1.22M |
-| kimi-cline (balanced)   | 12/16 | 13/16 | 25/32 | 43 | 1.34M |
-| kimi-cline (autonomous) | 11/16 | 14/16 | 25/32 | 40 | 1.28M |
-| cursor       | 12/16 | 12/16 | 24/32 | 32 | 1.10M |
-| sharp        | 11/16 | 11/16 | 22/32 | 32 | 0.92M |
+| prompt | K2.6 | K2.7 | K2.6 tok/tools/$ | K2.7 tok/tools/$ |
+|--------|------|------|------------------|------------------|
+| default | 16/43 | **25/43** | 35M / 25 / $8.5 | 41M / 26 / $10.2 |
+| sharp   | **21/43** | 18/43 | 42M / 28 / $10.0 | 40M / 26 / $9.9 |
+| cursor  | 20/43 | 17/43 | 43M / 28 / $10.8 | 48M / 26 / $11.6 |
+| kimi-cline (autonomous) | 19/43 | 20/43 | 64M / 40 / $15.2 | 59M / 31 / $14.1 |
+| kimi-cline (balanced)   | 18/43 | 13/43 | 39M / 29 / $9.6 | 52M / 30 / $12.6 |
+| claude-code | 14/43 | 22/43 | 42M / 28 / $10.0 | 45M / 29 / $11.2 |
 
-**Two findings, one of which revises the requests conclusion:**
+**The headline: the prompt effect flips sign with model strength.**
 
-1. **`claude-code` is the top arm again** (28/32, both models 14/16). It led on
-   requests and leads here — the most consistent result in the study, though still
-   not individually significant (28 vs 25/32 is ~1 SE).
+1. **On K2.6 (weaker), scaffolding helps.** `sharp` (21), `cursor` (20), `kcauto` (19) and
+   `kcbal` (18) all beat the bare `default` (16); `claude-code` (14) is the only arm below it.
+2. **On K2.7 (stronger), the bare `default` wins (25/43, 58%)** and every custom prompt
+   *hurts* it — `claude-code` 22, `kcauto` 20, `sharp` 18, `cursor` 17, `kcbal` 13. The
+   stronger model does best with the least instruction; heavy scaffolds constrain it.
+3. **`sharp` is the efficiency standout** — top arm on K2.6 (21) and the cheapest, most
+   tool-frugal of all (40M tokens / 26 tools / $9.9 on K2.7); `kcauto` runs hottest
+   (64M / 40 tools / $15) for middling resolve.
 
-2. **The "harness-tuned prompts regress" verdict did NOT replicate.** On requests,
-   `sharp` (6/16 pooled) and `cursor` (7/16) cratered far below `default` (12/16) —
-   a real, significant gap. On the harder band they're **on par**: `cursor` 24/32,
-   `sharp` 22/32 vs `default` 25/32 — a 1–3 instance difference, not significant.
-   The whole field compresses into 69–88%. So that regression looks **band-specific**,
-   not a general property of those prompts.
+**This revises the 16-instance pilot.** An earlier 16-instance cut of this band put
+`claude-code` on top (28/32) and read it as "the most consistent winner." At 48 instances
+that did **not** hold: `claude-code` is *worst* on K2.6 (14) and second on K2.7 (22), while
+`default·K2.7` leads. The small-N result was noise — at n=16 a 1–3 instance lead sits inside
+one standard error (see the significance note above). The honest cross-study read is now:
+**no single prompt dominates; the best scaffold depends on the model, and on the strongest
+model no scaffold beats the default.**
 
-**Heavy caveat — environment confound.** The two bake-offs are NOT a clean A/B of
-difficulty: requests ran on the Mac (bare env, agents couldn't run the repo's
-tests), this ran on a server where agents **could** `pip install` + `pytest` and
-iterate against test feedback. A verify loop helps a weaker prompt catch its own
-mistakes — compressing the spread and lifting the laggards, exactly what we see.
-So the vanished regression is confounded between *harder tasks* and *richer
-environment*; it can't be cleanly attributed. Honest read: **claude-code's lead is
-robust across both bands; the sharp/cursor regression is not.**
-
-Cost note: the harder band costs more everywhere (30–44 tools, ~0.9–1.5M tokens/
-instance vs ~25 / ~0.7M on requests) — bigger repos + test loops. `claude-code` /
-`cursor` / `sharp` are the tool-frugal arms (~32–36); `default` / `kimi-cline` run
-hotter (39–44) with no resolved-rate gain.
+Cross-band caveat: the requests band ran on the Mac (bare env, no in-solve `pytest`), this
+band on the server (agents could `pip install` + run tests). So differences *between* the
+two bake-offs are confounded by environment; only the within-band arm-to-arm deltas here are
+clean. Cost: the harder band runs ~0.7–1.3M tokens/instance (bigger repos + test loops);
+`default`/`sharp` are the frugal arms, the autonomous `kimi-cline` the most expensive.
 
 Reproducibility: the whole run is driven by `ab/server/` (setup + parallel predict
 + disk-guarded eval). It surfaced — and the harness now fixes — three reliability

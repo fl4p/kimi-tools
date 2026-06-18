@@ -30,7 +30,12 @@ def free_gb(path):
     return shutil.disk_usage(path).free / 1e9
 
 NET_SIGNATURES = ["502", "503", "Bad Gateway", "ConnectionError",
-                  "JSONDecodeError", "Max retries", "ConnectTimeout"]
+                  "JSONDecodeError", "Max retries", "ConnectTimeout",
+                  # Docker Hub anonymous pull rate limit — the harness removes+re-pulls
+                  # instance images every arm, so a multi-arm run exhausts the 100/6h
+                  # anonymous budget and later arms 429 on every instance. Treat as a flake
+                  # (re-eval after backoff); --cache_level instance below also cuts re-pulls.
+                  "429", "toomanyrequests", "rate limit", "pull rate limit"]
 DATASET = "princeton-nlp/SWE-bench_Verified"
 
 
@@ -39,6 +44,9 @@ def run_eval(preds, run_id, report_dir, workers, instances=None):
     cmd = [sys.executable, "-m", "swebench.harness.run_evaluation",
            "--dataset_name", DATASET, "--predictions_path", str(preds),
            "--run_id", run_id, "--namespace", "swebench",
+           # keep instance images cached across arms: each of the N images is pulled once
+           # and reused, instead of removed+re-pulled per arm (the Docker Hub 429 trigger).
+           "--cache_level", "instance",
            "--max_workers", str(workers), "--report_dir", str(report_dir)]
     if instances:
         cmd += ["--instance_ids", *instances]
