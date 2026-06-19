@@ -172,15 +172,24 @@ def parse_codex(stdout: str):
 
 
 def extract_patch(wd: Path, test_files: list[str]) -> str:
-    """Staged diff vs base_commit (HEAD), excluding the grading test files.
-    `git add -A` so newly-created source files are captured too."""
+    """Staged diff vs base_commit (HEAD), excluding the grading test files and any
+    agent-created scratch. `git add -A` so newly-created SOURCE files are captured.
+
+    Agents routinely litter the workdir with throwaway dirs — pip user-base/cache
+    (PYTHONUSERBASE/PIP_CACHE_DIR live inside the workdir, see predict_one),
+    virtualenvs (`.venv*`), vendored libs (`_pylibs`), reproduction projects
+    (`repro_docs`, `testproj`) — which `git add -A` would otherwise sweep into the
+    patch (tens of MB of site-packages, breaking grading). Rather than blacklist an
+    open-ended set of names, drop any newly-created TOP-LEVEL path that did not exist
+    in the repo at base_commit (HEAD — the agent's edits aren't committed). Real
+    edits and new files under existing package dirs are kept."""
     _run(["git", "-C", str(wd), "add", "-A"])
-    # exclude grading test files, our seeded opencode.json (sharp-prompt arm), and
-    # the agent's throwaway pip dirs. PYTHONUSERBASE/PIP_CACHE_DIR live INSIDE the
-    # workdir (host-hygiene isolation, see predict_one), so without these excludes
-    # `git add -A` sweeps the entire installed site-packages + pip cache into the
-    # model patch — bloating it to tens of MB for any model that pip-installs.
-    excludes = list(test_files) + ["opencode.json", ".pyuserbase", ".pipcache"]
+    base = set(_run(["git", "-C", str(wd), "ls-tree", "--name-only", "-z", "HEAD"]
+                    ).stdout.split("\0"))
+    staged = _run(["git", "-C", str(wd), "diff", "--cached", "--name-only", "-z"]
+                  ).stdout.split("\0")
+    new_tops = {p.split("/", 1)[0] for p in staged if p} - base
+    excludes = list(test_files) + ["opencode.json"] + sorted(new_tops)
     pathspec = ["--", "."] + [f":(exclude){f}" for f in excludes]
     r = _run(["git", "-C", str(wd), "diff", "--cached"] + pathspec)
     return r.stdout

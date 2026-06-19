@@ -1,10 +1,10 @@
-# SWE-bench Verified: Kimi K2.6 vs K2.7 — system-prompt bake-off
+# SWE-bench Verified: Kimi K2.6 / K2.7 / GLM-5.2 — system-prompt bake-off
 
 Scored by the **official** `swebench.harness.run_evaluation` — real GitHub issues
-with hidden FAIL_TO_PASS / PASS_TO_PASS grading tests. We run opencode+Kimi (via
-Fireworks) on each issue, extract the `git diff`, and grade it. The question:
-does swapping the agent **system prompt** change how much Kimi can solve, and does
-the answer differ between K2.6 and K2.7?
+with hidden FAIL_TO_PASS / PASS_TO_PASS grading tests. We run opencode (via Fireworks)
+on each issue, extract the `git diff`, and grade it. The question: does swapping the
+agent **system prompt** change how much a model can solve, and does the answer differ
+across models — **Kimi K2.6, Kimi K2.7, and GLM-5.2**?
 
 We tested two difficulty bands:
 - **harder band** — 48 instances across 8 repos (sympy / scikit-learn / sphinx /
@@ -13,25 +13,27 @@ We tested two difficulty bands:
 - **easy band** — all 8 `psf/requests` instances ("<15 min–1 h", pure-Python). Near
   the ceiling for every arm; useful mainly as a control.
 
-Six prompts in both bands: `default` (opencode's built-in coding agent), `claude-code`,
-`cursor`, `sharp` (a tool-hygiene-tuned prompt), and our two `kimi-cline` prompts
-(balanced + autonomous).
+Six prompts: `default` (opencode's built-in coding agent), `claude-code`, `cursor`,
+`sharp` (a tool-hygiene-tuned prompt), and our two `kimi-cline` prompts (balanced +
+autonomous). The two Kimi models ran both bands × all six prompts; **GLM-5.2 ran the
+harder band × all six prompts** (the signal-bearing comparison).
 
 ## TL;DR
 
-1. **The prompt effect flips sign with model strength** (48-instance band). On the
-   weaker **K2.6**, scaffolding helps — `sharp`/`cursor`/`kimi-cline` all beat the
-   bare `default`. On the stronger **K2.7**, the bare `default` *wins* (25/43, 58%)
-   and every custom prompt hurts it. The stronger model does best with the least
-   instruction.
-2. **No single prompt dominates**, and the deltas are within ~1 standard error. The
-   best scaffold depends on the model; on the strongest model, no scaffold beats default.
+1. **The best prompt is model-specific — not ordered by model strength** (48-instance
+   band, 3 models × 6 prompts). Each model's best arm differs: **K2.6 → sharp** (21/43),
+   **K2.7 → bare default** (25/43), **GLM-5.2 → cursor** (37/43). The same scaffolds that
+   *hurt* K2.7 (down to 13/43) *lift* GLM-5.2 to 34–37/43.
+2. **GLM-5.2 is the strongest model on this band at its best (37/43, 86%) and the cheapest**
+   (~12–27M tokens/arm vs Kimi's 35–64M) — but only with scaffolding; on bare `default` it
+   ties K2.7 (26 vs 25) because it bails without editing 12/48 of the time. Coding-agent
+   scaffolds cut that empty rate to 1–4 and the resolved rate climbs with it.
 3. **The easy band can't separate the arms** — under clean grading every prompt lands
    at 6–7/8 fix-correctness. It adds a near-constant offset to the pooled score and
    does not change the ranking.
-4. **A third model agrees.** **GLM-5.2** on the default prompt ties the strongest Kimi at
-   the top of the harder band (**26/43** vs K2.7's 25/43), at 3–4× fewer model tokens but a
-   high empty-patch rate. See **Third model: GLM-5.2**.
+4. **No single prompt dominates across models**, and within a model the Kimi deltas are
+   within ~1 standard error; the GLM-5.2 scaffold-vs-default gap (≈+10/43) is the one large,
+   robust prompt effect. The best scaffold depends on the model's default-prompt failure mode.
 5. **A retraction:** an earlier version of this doc reported a dramatic easy-band
    "family split" (`sharp` 2/8, `cursor` 3/8 vs `claude-code` 8/8). That spread was a
    **grading artifact** — the `psf/requests` suite hammers a live `httpbin` service
@@ -48,77 +50,95 @@ a UID beyond the host's rootless-docker subuid range, so the layers won't unpack
 box (a host constraint, not a model failure). Resolved rates are out of **43**. (Two
 sklearn instances each errored for one arm and are conservatively counted as not-resolved.)
 
-| prompt | K2.6 | K2.7 | K2.6 tok/tools/$ | K2.7 tok/tools/$ |
-|--------|------|------|------------------|------------------|
-| default | 16/43 | **25/43** | 35M / 25 / $8.5 | 41M / 26 / $10.2 |
-| sharp   | **21/43** | 18/43 | 42M / 28 / $10.0 | 40M / 26 / $9.9 |
-| cursor  | 20/43 | 17/43 | 43M / 28 / $10.8 | 48M / 26 / $11.6 |
-| kimi-cline (autonomous) | 19/43 | 20/43 | 64M / 40 / $15.2 | 59M / 31 / $14.1 |
-| kimi-cline (balanced)   | 18/43 | 13/43 | 39M / 29 / $9.6 | 52M / 30 / $12.6 |
-| claude-code | 14/43 | 22/43 | 42M / 28 / $10.0 | 45M / 29 / $11.2 |
+Three models, all six prompts, resolved out of 43:
 
-**The prompt effect flips sign with model strength.**
+| prompt | K2.6 | K2.7 | GLM-5.2 |
+|--------|:----:|:----:|:-------:|
+| default | 16/43 (37%) | 25/43 (58%) | 26/43 (60%) |
+| sharp   | 21/43 (49%) | 18/43 (42%) | 29/43 (67%) |
+| cursor  | 20/43 (47%) | 17/43 (40%) | **37/43 (86%)** |
+| kimi-cline (autonomous) | 19/43 (44%) | 20/43 (47%) | 34/43 (79%) |
+| kimi-cline (balanced)   | 18/43 (42%) | 13/43 (30%) | 27/43 (63%) |
+| claude-code | 14/43 (33%) | 22/43 (51%) | 35/43 (81%) |
+| **best / worst arm** | sharp 21 / claude 14 | default 25 / kcbal 13 | **cursor 37 / default 26** |
 
-1. **On K2.6 (weaker), scaffolding helps.** `sharp` (21), `cursor` (20), `kcauto` (19) and
-   `kcbal` (18) all beat the bare `default` (16); `claude-code` (14) is the only arm below it.
-2. **On K2.7 (stronger), the bare `default` wins (25/43, 58%)** and every custom prompt
-   *hurts* it — `claude-code` 22, `kcauto` 20, `sharp` 18, `cursor` 17, `kcbal` 13. The
-   stronger model does best with the least instruction; heavy scaffolds constrain it.
-3. **`sharp` is the efficiency standout** — top arm on K2.6 (21) and the cheapest, most
-   tool-frugal of all (40M tokens / 26 tools / $9.9 on K2.7); `kcauto` runs hottest
-   (64M / 40 tools / $15) for middling resolve.
+**There is no universal best prompt — and it is not ordered by model strength.** Each model
+has a *different* best arm and a *different* worst arm:
+
+1. **K2.6 (weakest) likes light scaffolding** — `sharp` (21) and `cursor` (20) beat bare
+   `default` (16); only `claude-code` (14) trails it.
+2. **K2.7 wants no scaffold** — bare `default` wins (25/43) and every custom prompt *hurts*,
+   down to `kcbal` (13). The least instruction is best.
+3. **GLM-5.2 wants scaffolding badly** — `cursor` (37/43, 86%), `claude-code` (35) and
+   `kcauto` (34) tower over bare `default` (26), which is GLM-5.2's *worst* arm.
+
+The earlier "prompt effect flips sign with model **strength**" reading was an artifact of
+having only two models. GLM-5.2 breaks it: on the bare `default` prompt GLM-5.2 ≈ K2.7
+(26 vs 25), yet the *same* scaffolds that drop K2.7 to 13–22 lift GLM-5.2 to 34–37. The
+effect is **model-specific**, set by each model's default-prompt failure mode, not its raw
+strength.
+
+**The mechanism is the empty-patch rate.** Under bare `default`, GLM-5.2 ends **12/48**
+trajectories without committing any source edit; the coding-agent scaffolds ("edit the
+source, don't stop at analysis"; verify before finishing) cut that to **1–4**, and the
+resolved-rate gain tracks the empty-rate drop almost exactly. K2.7 already drives a decisive
+edit loop on `default`, so the same scaffolds only add friction. At its best, **GLM-5.2 is
+the strongest model on this band** (cursor 37/43 vs the best Kimi arm's 25/43) — and the
+cheapest (~12–27M tokens/arm vs Kimi's 35–64M).
+
+### Harder-band cost (per arm)
+
+| prompt | K2.6 tok/tools/$ | K2.7 tok/tools/$ | GLM-5.2 tok/tools |
+|--------|------------------|------------------|-------------------|
+| default | 35M / 25 / $8.5 | 41M / 26 / $10.2 | 12M / 11 |
+| sharp   | 42M / 28 / $10.0 | 40M / 26 / $9.9 | 15M / 14 |
+| cursor  | 43M / 28 / $10.8 | 48M / 26 / $11.6 | 20M / 15 |
+| kimi-cline (autonomous) | 64M / 40 / $15.2 | 59M / 31 / $14.1 | 27M / 21 |
+| kimi-cline (balanced)   | 39M / 29 / $9.6 | 52M / 30 / $12.6 | 18M / 17 |
+| claude-code | 42M / 28 / $10.0 | 45M / 29 / $11.2 | 17M / 15 |
+
+<sub>GLM-5.2 ran on a fresh x86-64 box (same environment *kind* as the Kimi server: native
+Docker + in-solve `pip`/`pytest`; root Docker, so matplotlib grades and is excluded to keep
+the /43 comparable). GLM `$` omitted — needs the GLM-5.2 Fireworks rate; tokens run ~3× below
+Kimi. GLM's heavy installing exposed (and we fixed) a patch-extraction leak — see **GLM-5.2
+notes** below.</sub>
 
 **This revises a 16-instance pilot.** An earlier 16-instance cut of this band put
 `claude-code` on top (28/32) and read it as "the most consistent winner." At 48 instances
 that did **not** hold: `claude-code` is *worst* on K2.6 (14) and second on K2.7 (22), while
 `default·K2.7` leads. The small-N result was noise — at n=16 a 1–3 instance lead sits inside
-one standard error. The honest read: **no single prompt dominates; the best scaffold depends
-on the model, and on the strongest model no scaffold beats the default.**
+one standard error. The honest read: **no single prompt dominates; the best scaffold is
+model-specific** — true for K2.7 (no scaffold beats default) but the *opposite* for GLM-5.2
+(every good scaffold beats default by a wide margin).
 
-## Third model: GLM-5.2 (default prompt)
+## GLM-5.2 notes (empty-patch mechanism + a harness leak)
 
-To check whether the default-prompt result generalizes beyond Kimi, we added a third
-model — **GLM-5.2** (also via Fireworks) — on the **default prompt only**, same 48-instance
-harder band. Re-run on a fresh x86-64 box with native Docker + in-solve `pip`/`pytest` (the
-same environment *kind* as the Kimi runs, not the literal same machine). That box has root
-Docker, so the 5 matplotlib instances grade here and are reported separately to keep the
-/43 figure apples-to-apples with the Kimi columns.
+GLM-5.2's per-arm resolved rates are in the harder-band table above. Two things behind
+those numbers are worth recording.
 
-| model (default prompt) | resolved /43 | total tokens | avg tools/inst |
-|---|:---:|:---:|:---:|
-| K2.6        | 16/43 (37%) | 35M | 25 |
-| K2.7        | 25/43 (58%) | 41M | 26 |
-| **GLM-5.2** | **26/43 (60%)** | **~12M** | **11** |
+**The empty-patch mechanism, per repo.** GLM-5.2's prompt sensitivity is almost entirely
+about *whether it commits an edit at all*. Empty-patch counts by arm (out of 48): default 12,
+kcbal 9, sharp 5, claude 4, cursor 4, **kcauto 1**. The arms that suppress empties resolve
+more, near-monotonically. When GLM-5.2 does commit, it is accurate — e.g. on `default`, 26 of
+its 32 non-empty /43 patches resolve (81%); the best arm `cursor` reaches 37/43. Per-repo on
+the strongest arms it is excellent on `pydata/xarray`, `astropy` (claude solves 5/5) and
+`sympy`, weaker on `django`.
 
-**GLM-5.2 on the default prompt ties the strongest Kimi at the top** — 26/43 vs K2.7's
-25/43 (a 1-instance gap, statistically indistinguishable), both well above K2.6's 16/43.
-Per-repo it is strong on `pydata/xarray` (7/7), `sympy` (5/8) and `sklearn` (4/8), weak on
-`django` (1/4) and `sphinx` (3/7). On the 5 matplotlib instances (bonus, root-docker only)
-it resolves 3/5 — 29/48 overall.
+**A latent harness leak this run exposed (and we fixed twice).** GLM-5.2 pip-installs and
+runs tests in-solve far more than Kimi, which surfaced a patch-extraction bug:
 
-Two behavioral notes matter more than the headline number:
+- The harness sets `PYTHONUSERBASE`/`PIP_CACHE_DIR` *inside* the throwaway workdir (host
+  hygiene), so `extract_patch`'s `git add -A` swept the installed `site-packages` (254 MB)
+  and pip cache into the patch — 25 MB diffs. First fix: exclude `.pyuserbase`/`.pipcache`.
+- But the scaffolded arms then revealed that agents also create their *own* scratch — cursor
+  built a `.venv311` (3672 files) + `_pylibs` (a 49 MB diff), sharp made `repro_docs`/`testproj`.
+  Blacklisting names is hopeless. **General fix:** `extract_patch` now drops any newly-created
+  top-level path that did not exist in the repo at `base_commit` (allowlist from `git ls-tree
+  HEAD`), keeping real edits and new source files under existing package dirs.
 
-1. **High empty-patch rate.** GLM-5.2 returned **12/48 empty patches** — it often ended a
-   trajectory without committing any source edit. But when it *did* commit it was accurate:
-   **26 of its 32 non-empty /43 patches resolved (81%)**. High-precision, lower-recall — the
-   opposite of a model that edits eagerly but sloppily.
-2. **Terse trajectory, heavy environment use.** ~244k tokens and only ~11 tool calls per
-   instance — **3–4× fewer model tokens than the Kimi default arms** — yet ~457s/instance,
-   because it leaned on in-solve `pip install` + `pytest` over model reasoning. (Token/tool
-   counts are harness-reported via opencode's session db.)
-
-**A harness bug this run exposed (and we fixed).** GLM's aggressive installing surfaced a
-latent leak: the harness puts `PYTHONUSERBASE` and `PIP_CACHE_DIR` *inside* the throwaway
-workdir (for host hygiene), but `extract_patch`'s `git add -A` then swept the entire
-installed `site-packages` (254 MB) and pip cache into the model patch — bloating GLM's raw
-diffs to 25 MB. The Kimi runs were unaffected (they read+edited rather than installing), so
-their numbers stand. We (a) re-derived GLM's patches by stripping `.pyuserbase`/`.pipcache`
-(the real edits were intact underneath) and (b) fixed `extract_patch` to exclude both dirs
-going forward. The 26/43 above is on the cleaned, correctly-graded patches.
-
-This extends the default-prompt story: **the bare default prompt is competitive-to-best
-across all three models, and the two strongest (K2.7, GLM-5.2) sit together at the top on
-it** — reinforcing that on capable models, scaffolding is not where the wins are.
+The Kimi runs read+edited rather than installing, so they never triggered the leak — their
+numbers stand. All GLM-5.2 figures above are on patches cleaned by the allowlist rule and
+re-graded; the fix is in `swe_bench.py` so future runs extract clean by construction.
 
 ## Merged view across both bands
 
@@ -146,8 +166,8 @@ The right metric differs by band, so the merge is faceted, not a naive sum:
 just shifts everyone by ~+7. The **pooled ranking is identical to the harder-band
 ranking** for both models (K2.7: default > claude-code > kcauto > sharp > cursor > kcbal;
 K2.6: sharp > cursor > kcauto > kcbal > default > claude-code). The 48-instance band
-drives the entire result; the easy band is confirmatory ballast — and the sign-flip with
-model strength survives the merge intact.
+drives the entire result; the easy band is confirmatory ballast. (The merged view covers the
+two Kimi models; GLM-5.2 ran the harder band only.)
 
 ## Easy band (8 `psf/requests`), re-graded clean — and a retraction
 
@@ -257,10 +277,11 @@ Grading-independent reads (these don't lean on resolved rate):
   fitting noise in httpbin's uptime. Retired.
 - **On the easy band, clean grading separates nothing** — 6–7/8 for all six arms, both
   models. The Wilson CIs at n=8 are enormous (6/8 → [0.41, 0.93]); there is nothing to rank.
-- **On the harder band, the arm-to-arm gaps are within ~1 standard error.** A 1–3 instance
-  lead at n=43 (≈ SE of ±3–4 on a ~40–60% rate) is not separable. What *is* robust is the
-  *direction*: the sign-flip with model strength is consistent across every scaffold (all
-  help K2.6 except claude-code; all hurt K2.7), and it's the same story in the pooled /51.
+- **On the harder band, the *Kimi* arm-to-arm gaps are within ~1 standard error.** A 1–3
+  instance lead at n=43 (≈ SE of ±3–4 on a ~40–60% rate) is not separable, so the K2.6/K2.7
+  prompt rankings are directional only. **The exception is GLM-5.2**, where the
+  scaffold-vs-`default` gap is ≈+10/43 (cursor 37 vs default 26) — several SE, a genuinely
+  robust effect, driven by the empty-patch collapse from 12 to 1–4.
 - **K2.6 ≈ K2.7 on solvability**, differing in failure-mode/cost more than in what they can
   solve — consistent with every other study in this repo.
 
@@ -288,8 +309,9 @@ would need pass@k over a larger hard-band sample.
   the host.
 
 ## Caveats (why this isn't the final word)
-- **The harder band is n=43, 1 attempt/instance (no pass@k).** Arm-to-arm gaps sit inside
-  one standard error; only the cross-arm *direction* (the sign-flip) is robust.
+- **The harder band is n=43, 1 attempt/instance (no pass@k).** Within-model Kimi arm-to-arm
+  gaps sit inside one standard error (directional only); the GLM-5.2 scaffold-vs-default gap
+  (≈+10/43) is the one that clears it.
 - **The easy band is at the ceiling** for every arm on fix-correctness and is network-bound
   on strict grading — it's a control, not a discriminator.
 - **Cross-band differences are confounded by environment**: the easy band ran on the Mac
