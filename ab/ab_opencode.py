@@ -48,6 +48,7 @@ CUSTOM_PROMPT = SCRIPT_DIR.parents[1] / "sharp.md"
 MODELS = {
     "k2.6": "fireworks-ai/accounts/fireworks/models/kimi-k2p6",
     "k2.7": "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code",
+    "glm5.2": "fireworks-ai/accounts/fireworks/models/glm-5p2",
 }
 CUSTOM_AGENT = "kimi-sys"
 

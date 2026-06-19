@@ -175,8 +175,12 @@ def extract_patch(wd: Path, test_files: list[str]) -> str:
     """Staged diff vs base_commit (HEAD), excluding the grading test files.
     `git add -A` so newly-created source files are captured too."""
     _run(["git", "-C", str(wd), "add", "-A"])
-    # exclude grading test files AND our seeded opencode.json (sharp-prompt arm)
-    excludes = list(test_files) + ["opencode.json"]
+    # exclude grading test files, our seeded opencode.json (sharp-prompt arm), and
+    # the agent's throwaway pip dirs. PYTHONUSERBASE/PIP_CACHE_DIR live INSIDE the
+    # workdir (host-hygiene isolation, see predict_one), so without these excludes
+    # `git add -A` sweeps the entire installed site-packages + pip cache into the
+    # model patch — bloating it to tens of MB for any model that pip-installs.
+    excludes = list(test_files) + ["opencode.json", ".pyuserbase", ".pipcache"]
     pathspec = ["--", "."] + [f":(exclude){f}" for f in excludes]
     r = _run(["git", "-C", str(wd), "diff", "--cached"] + pathspec)
     return r.stdout

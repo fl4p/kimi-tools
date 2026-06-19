@@ -1,270 +1,47 @@
-# SWE-bench Verified: K2.6 vs K2.7 (first real-eval run)
+# SWE-bench Verified: Kimi K2.6 vs K2.7 — system-prompt bake-off
 
-The toy and hard scenarios saturate at 100% and can't rank the two models
-(`FINDINGS-hard.md`). This is the first run scored by the **official**
-`swebench.harness.run_evaluation` — real GitHub issues, hidden FAIL_TO_PASS /
-PASS_TO_PASS grading tests.
+Scored by the **official** `swebench.harness.run_evaluation` — real GitHub issues
+with hidden FAIL_TO_PASS / PASS_TO_PASS grading tests. We run opencode+Kimi (via
+Fireworks) on each issue, extract the `git diff`, and grade it. The question:
+does swapping the agent **system prompt** change how much Kimi can solve, and does
+the answer differ between K2.6 and K2.7?
 
-## Pipeline (now fully working)
-- **Predict**: `swe_bench.py` — clone repo@base_commit, run opencode+Kimi on the
-  issue (default agent, prompt held constant), extract `git diff` as the
-  model_patch. Two bring-up bugs fixed: run opencode with `cwd=<workdir>` (else it
-  inherits this repo's `.opencode` config and never converges), and an
-  action-forcing prompt line (else the model rabbit-holes into reproduction and
-  never edits).
-- **Eval**: official swebench via **colima** (Docker daemon in a Linux VM) with
-  `--vm-type vz --vz-rosetta` so this arm64 Mac runs SWE-bench's x86 images via
-  Rosetta. Gold-patch sanity check resolved 1/1. (podman's docker-compat API was
-  unusable — storage-driver error; colima fixed it.)
+We tested two difficulty bands:
+- **harder band** — 48 instances across 8 repos (sympy / scikit-learn / sphinx /
+  xarray / matplotlib / astropy / pytest / django), the "15 min–1 h" and "1–4 h"
+  bands. This is the signal-bearing run.
+- **easy band** — all 8 `psf/requests` instances ("<15 min–1 h", pure-Python). Near
+  the ceiling for every arm; useful mainly as a control.
 
-## Result — subset: all 8 `psf/requests` instances
-opencode + Kimi, Fireworks, default prompt, 1 attempt/instance.
+Six prompts in both bands: `default` (opencode's built-in coding agent), `claude-code`,
+`cursor`, `sharp` (a tool-hygiene-tuned prompt), and our two `kimi-cline` prompts
+(balanced + autonomous).
 
-| instance | K2.6 | K2.7 |
-|----------|------|------|
-| requests-1142 | ✅ | ✅ |
-| requests-1724 | ✅ | ❌ unresolved |
-| requests-1766 | ✅ | ✅ |
-| requests-1921 | ✅ | ❌ unresolved |
-| requests-2317 | ❌ unresolved | ✅ |
-| requests-2931 | ✅ | ✅ |
-| requests-5414 | ✅ | ✅ |
-| requests-6028 | ⊘ empty patch | ✅ |
-| **resolved** | **6 / 8 (75%)** | **6 / 8 (75%)** |
+## TL;DR
 
-## Read
-- **Dead tie: 6/8 each.** 4 instances solved by both; each model uniquely solves 2
-  the other misses (K2.6: 1724, 1921; K2.7: 2317, 6028). At n=8 that difference is
-  noise, not signal.
-- K2.6 left **1 empty patch** (didn't converge to an edit on 6028); K2.7 produced
-  a patch for all 8 but 2 failed the hidden tests. Different failure shapes, same
-  score.
-- **No measurable K2.7 capability edge** — consistent with every other study here.
-  At this difficulty band the models are interchangeable on success; they differ
-  only in latency/cost/failure-mode, not in what they can solve.
+1. **The prompt effect flips sign with model strength** (48-instance band). On the
+   weaker **K2.6**, scaffolding helps — `sharp`/`cursor`/`kimi-cline` all beat the
+   bare `default`. On the stronger **K2.7**, the bare `default` *wins* (25/43, 58%)
+   and every custom prompt hurts it. The stronger model does best with the least
+   instruction.
+2. **No single prompt dominates**, and the deltas are within ~1 standard error. The
+   best scaffold depends on the model; on the strongest model, no scaffold beats default.
+3. **The easy band can't separate the arms** — under clean grading every prompt lands
+   at 6–7/8 fix-correctness. It adds a near-constant offset to the pooled score and
+   does not change the ranking.
+4. **A third model agrees.** **GLM-5.2** on the default prompt ties the strongest Kimi at
+   the top of the harder band (**26/43** vs K2.7's 25/43), at 3–4× fewer model tokens but a
+   high empty-patch rate. See **Third model: GLM-5.2**.
+5. **A retraction:** an earlier version of this doc reported a dramatic easy-band
+   "family split" (`sharp` 2/8, `cursor` 3/8 vs `claude-code` 8/8). That spread was a
+   **grading artifact** — the `psf/requests` suite hammers a live `httpbin` service
+   that flaked during sequential arm runs. A deterministic re-grade collapses the
+   spread to 6–7/8 for all arms. The split is retired; see **Easy band, re-graded**.
 
-## Efficiency (predict-phase latency / tokens / tool calls)
+## Headline — harder band (8 repos, 48 instances, on a server)
 
-|                      | K2.6  | K2.7  |
-|----------------------|-------|-------|
-| avg latency/instance | 95s   | **72s** |
-| total wall-clock (8) | 762s  | **574s** |
-| avg tokens/instance  | 731k  | 728k  |
-| total tokens         | 5.85M | 5.82M |
-| avg tool calls       | 25.4  | 25.2  |
-
-- **Tokens and tool-calls are essentially identical** (~5.8M total, ~730k/instance,
-  ~25 calls). On real repo work both models do the same *amount* of work.
-- **K2.7 was faster here (72s vs 95s)** — the OPPOSITE of every toy/hard-scenario
-  study, where K2.7 was the slow one. That "K2.7 is slower" pattern did NOT
-  replicate on real agentic work. Likely because real-repo latency is dominated by
-  tool execution (pip install, pytest, bash) not model token-generation speed, so
-  the model-speed difference washes out.
-- **But it's noisy.** Per-instance variance is huge: requests-5414 was K2.6 218s /
-  1.5M tok vs K2.7 48s / 346k tok (same instance); 1766 flips the other way (K2.6
-  23s vs K2.7 40s). At n=8 the 95-vs-72 average is barely above noise. Also K2.6's
-  early instances overlapped the gold eval on colima → some VM contention inflated
-  its times; K2.7 ran clean. Don't over-read the latency edge.
-
-Net across all three axes — resolved-rate (6/8 tie), tokens (identical), latency
-(comparable, noisy) — **nothing cleanly separates the two models on this workload.**
-
-## Sharp prompt vs default (4-arm, same 8 requests instances)
-
-Re-ran both models with the **`sharp.md`** custom prompt (the "small sharp toolset"
-system prompt) seeded as an opencode agent — everything else identical.
-
-| instance | K2.6 default | K2.6 sharp | K2.7 default | K2.7 sharp |
-|----------|------|------|------|------|
-| 1142 | ✅ | ✅ | ✅ | ✅ |
-| 1724 | ✅ | ❌ | ❌ | ❌ |
-| 1766 | ✅ | ❌ | ✅ | ❌ |
-| 1921 | ✅ | ❌ | ❌ | ❌ |
-| 2317 | ❌ | ❌ | ✅ | ❌ |
-| 2931 | ✅ | ❌ | ✅ | ✅ |
-| 5414 | ✅ | ✅ | ✅ | ✅ |
-| 6028 | ⊘ empty | ⊘ empty | ✅ | ✅ |
-| **resolved** | **6/8** | **2/8** | **6/8** | **4/8** |
-
-| arm | avg latency | avg tokens | avg tool calls |
-|-----|------|------|------|
-| K2.6 default | 95s | 731k | 25.4 |
-| K2.6 sharp | 87s | 652k | 24.9 |
-| K2.7 default | 72s | 728k | 25.2 |
-| K2.7 sharp | 86s | **530k** | 23.4 |
-
-**The sharp prompt REGRESSED both models and gained nothing.** K2.6 6→2/8, K2.7
-6→4/8; *every* changed cell is a loss, no instance was newly solved. And it did so
-while using **fewer tokens** (K2.7 728k→530k) — i.e. it compressed the model into
-doing *less* work, and that less work produced *wrong* fixes more often (different,
-terser patches that fail the hidden tests).
-
-This is the punchline tying the whole study together: `sharp` was tuned to improve
-**tool-hygiene metrics on toy scenarios** (fewer discouraged/duplicate calls), and
-it does — but on **real tasks with hidden correctness tests it trades correctness
-for concision.** Cleaner-looking tool use ≠ better outcomes. The hygiene win on
-trivial tasks was measuring the wrong thing.
-
-## System-prompt bake-off (6 prompts × 2 models)
-
-Same 8 psf/requests instances, opencode+Kimi harness, swapping only the
-`--agent-prompt`. "default" = opencode's built-in coding-agent prompt. The other
-five are real agent system prompts extracted/adapted for opencode's toolset.
-
-| prompt (`--agent-prompt`) | K2.6 | K2.7 | source |
-|---------------------------|------|------|--------|
-| **default** (opencode)    | 6/8  | 6/8  | opencode built-in |
-| sharp                     | 2/8  | 4/8  | kimi tool-hygiene-tuned |
-| cursor                    | 3/8  | 4/8  | Cursor Composer (community leak) |
-| codex-coding              | 7/8  | 6/8  | OpenAI Codex `base_instructions` |
-| claude-code               | 7/8  | **8/8** | Claude Code interactive CLI |
-| cline (native-next-gen)   | 7/8  | 7/8  | Cline default |
-
-**The verdict splits cleanly into two families:**
-
-1. **Harness-/terseness-tuned prompts REGRESS** (`sharp`, `cursor`): both fall well
-   below the opencode default on both models. `sharp` was tuned for tool-hygiene
-   metrics; `cursor` is written for a different harness/UI. Neither was built to
-   maximize correctness on an unfamiliar toolset, and it shows.
-
-2. **Real general coding-agent prompts MATCH or BEAT the default** (`codex-coding`,
-   `claude-code`, `cline`): all three land at 7–8/8, i.e. ≥ default's 6/8. These
-   were written to drive a model through a read→edit→verify loop on real repos —
-   exactly this task — so they transfer even after tool-name adaptation.
-
-The standout is **claude-code on K2.7 → 8/8 (perfect)**, the only arm to beat default
-outright on a model. Its emphasis on "edit the source, don't stop at analysis" and
-verification discipline is the kind of guidance that helps Kimi most: the K2.7 failure
-mode on default was occasionally rabbit-holing on analysis without committing an edit.
-
-Takeaway: **a coding-agent prompt's value is mostly about whether it was built to
-drive a real edit-loop, not about which vendor wrote it or how clever the wording is.**
-Adapting any of the three "real" prompts to opencode's tools is a safe swap; the
-hygiene/UI-tuned ones are net-negative.
-
-### Cost profile (avg per instance, n=8)
-
-`latency` = wall-clock seconds of the opencode run; `tokens` = total tokens the
-run consumed (in/out, from the isolated session db); `tools` = number of tool
-calls the agent made. Averaged over the 8 psf/requests instances per arm.
-
-| prompt | model | resolved | avg latency | avg tokens | avg tool calls |
-|--------|-------|----------|-------------|------------|----------------|
-| default      | K2.6 | 6/8 | 95s  | 731k | 25.4 |
-| default      | K2.7 | 6/8 | 72s  | 728k | 25.2 |
-| sharp        | K2.6 | 2/8 | 87s  | 652k | 24.9 |
-| sharp        | K2.7 | 4/8 | 86s  | 530k | 23.4 |
-| cursor       | K2.6 | 3/8 | 149s | 814k | 26.0 |
-| cursor       | K2.7 | 4/8 | 254s | 751k | 27.4 |
-| codex-coding | K2.6 | 7/8 | 93s  | 517k | 18.8 |
-| codex-coding | K2.7 | 6/8 | 158s | 607k | 24.5 |
-| claude-code  | K2.6 | 7/8 | 123s | 676k | 22.4 |
-| claude-code  | K2.7 | 8/8 | 178s | 575k | 25.6 |
-| cline        | K2.6 | 7/8 | 140s | 541k | 25.9 |
-| cline        | K2.7 | 7/8 | 295s | 908k | 31.2 |
-
-![Avg latency per instance, by prompt × model](charts/cost-latency.svg)
-
-![Avg tokens per instance, by prompt × model](charts/cost-tokens.svg)
-
-![Avg tool calls per instance, by prompt × model](charts/cost-tools.svg)
-
-<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG), rendered from
-`bake-off-cost.csv` — the benchmark's own output via `swe_bench.py aggregate`
-(per-arm reduction of each predict `*.meta.json`), the same numbers as the table
-above. Blue = K2.6, orange = K2.7.</sub>
-
-What the cost columns add on top of the resolved-rate story:
-
-- **`codex-coding` is the efficiency winner**: best/tied-best resolved rate at the
-  *fewest* tool calls (K2.6: 18.8 vs default's 25.4) and *fewest* tokens (517k). It
-  gets more done with less — its terse, plan-first style cuts wasted exploration.
-- **`claude-code`'s 8/8 isn't free**: K2.7 spends more wall-clock (178s vs default's
-  72s) but actually *fewer* tokens (575k vs 728k) — it thinks longer per token, not
-  more tokens. The latency buys the correctness.
-- **`cline` is the most expensive arm** (K2.7: 295s, 908k tokens, 31 tool calls) for
-  the same 7/8 the others hit cheaper — its verbose, step-enumerating style inflates
-  cost without a matching resolved-rate gain.
-- **`sharp` is cheap *and* wrong**: fewest tokens on K2.7 (530k) but worst resolved
-  rate — it compressed the model into doing less work, and the less work was wrong.
-  Cheap is not the goal; cheap-and-correct is, and only `codex-coding` delivers it.
-
-Caveat on these numbers: latency is emulated/local wall-clock (Fireworks queue +
-network), so absolute seconds are noisy; the *relative* ordering and the
-tokens/tool-call counts are the stable signal.
-
-## Statistical significance
-
-What's real vs what's noise: put the resolved-rate gaps through an actual test (Fisher exact, two-sided;
-Wilson 95% CIs at n=8) and they split into two tiers:
-
-**Real — the family split.** The hygiene-/terseness-tuned prompts genuinely
-regress vs the real coding-agent prompts (pooling both models, n=16):
-
-- `sharp` 6/16 vs `claude-code` 15/16 → **p = 0.002**
-- `cursor` 7/16 vs `claude-code` 15/16 → **p = 0.006**
-
-These survive even being strict about multiple comparisons. The "two families"
-verdict is the part of this study to trust.
-
-**Noise — the ranking inside the good family.** Every top-cluster difference is
-statistically indistinguishable:
-
-- `claude-code` 8/8 vs `default` 6/8 (per model) → p = 0.47
-- `default` vs `claude-code` (pooled) → p = 0.33 · `codex` vs `claude` → p = 0.60
-  · `default` vs `cline` → p = 0.65
-
-The CIs are enormous — 6/8 → [0.41, 0.93], 8/8 → [0.68, 1.00], near-total overlap.
-So **`claude-code`'s 8/8 "win" is a ±1-instance wobble, not a proven edge** over
-codex/cline/default, and **K2.6 ≈ K2.7** is consistent with no detectable
-difference. Even `sharp` vs the *median* `default` is only borderline (p = 0.073).
-
-Compounding it: n=8, one repo, one difficulty band, 1 attempt (a single empty
-patch = a 12.5% swing), and ~15 pairwise comparisons inflating false-positive
-risk. The cost/latency/token numbers are noisier still (per-instance variance +
-some eval-VM contention) — read them as directional only.
-
-**Bottom line: trust the direction and the family split; don't rank the top four.**
-Separating those would need ~50–100 instances across the hard django/sympy/sklearn
-band with pass@k.
-
-## Our kimi-cline prompts on requests + the httpbin-flake lesson
-
-The two `kimi-cline` prompts (balanced + autonomous, `.oc-adapted`) were also run
-on the 8 `psf/requests` instances × both models:
-
-| arm | balanced | autonomous |
-|-----|----------|------------|
-| K2.6 | 8/8 | 7/8 (1 empty patch) |
-| K2.7 | 8/8\* | 8/8 |
-
-\* `k27_kimicline` scored **5/8 raw** but is really **8/8**: digging into the three
-"failures" showed all were **infrastructure, not the model**. `requests`'s test
-suite makes real `httpbin` calls in *both* FAIL_TO_PASS and PASS_TO_PASS tests, so
-under eval-VM contention they flake:
-
-- **1921, 2317** — the model's fix passed *every* FAIL_TO_PASS; a PASS_TO_PASS test
-  failed only on `assert 502 == 200` / a `JSONDecodeError` on a bad httpbin response
-  (2317's patch was byte-identical to gold). Pure network flake.
-- **6028** — predict hung on the Fireworks call → 600 s timeout → empty patch (0-byte
-  transcript). A retry converged in 123 s and the patch resolved.
-
-This is the **lesson that drove the eval hardening**: every resolved count carries
-httpbin-flake noise, which compounds the small-n problem. `eval_runner.py` now runs
-arms **sequentially** (no contention) and **re-evaluates** any unresolved-with-
-network-signature instance in isolation before trusting the verdict; `swe_bench.py
-predict --retries` guards the Fireworks-hang class. Net: the kimi-cline prompts sit
-in the strong cluster on requests (effectively 8/8, 8/8, 7/8, 8/8) — but, as ever at
-n=8, not statistically separable from the other good prompts.
-
-## Harder-band extension (8 repos, 48 instances, on a server)
-
-The requests bake-off is all easy/medium pure-Python at n=8. To test whether the verdict
-holds on harder repos at meaningful scale, we ran a second bake-off on **48 instances**
-across 8 repos (sympy / scikit-learn / sphinx / xarray / matplotlib / astropy / pytest /
-django — a blend of the "15 min–1 h" and "1–4 hours" bands). Same opencode+Kimi harness;
-the 6 prompts are `default`, `claude-code`, `cursor`, `sharp`, and our two `kimi-cline`
-prompts (balanced + autonomous). Run on an x86-64 Linux server with native Docker.
+Same opencode+Kimi harness, swapping only the `--agent-prompt`. Run on an x86-64
+Linux server with native Docker.
 
 **5 matplotlib instances are excluded** — their prebuilt eval images carry files owned by
 a UID beyond the host's rootless-docker subuid range, so the layers won't unpack on this
@@ -280,7 +57,7 @@ sklearn instances each errored for one arm and are conservatively counted as not
 | kimi-cline (balanced)   | 18/43 | 13/43 | 39M / 29 / $9.6 | 52M / 30 / $12.6 |
 | claude-code | 14/43 | 22/43 | 42M / 28 / $10.0 | 45M / 29 / $11.2 |
 
-**The headline: the prompt effect flips sign with model strength.**
+**The prompt effect flips sign with model strength.**
 
 1. **On K2.6 (weaker), scaffolding helps.** `sharp` (21), `cursor` (20), `kcauto` (19) and
    `kcbal` (18) all beat the bare `default` (16); `claude-code` (14) is the only arm below it.
@@ -291,51 +68,257 @@ sklearn instances each errored for one arm and are conservatively counted as not
    tool-frugal of all (40M tokens / 26 tools / $9.9 on K2.7); `kcauto` runs hottest
    (64M / 40 tools / $15) for middling resolve.
 
-**This revises the 16-instance pilot.** An earlier 16-instance cut of this band put
+**This revises a 16-instance pilot.** An earlier 16-instance cut of this band put
 `claude-code` on top (28/32) and read it as "the most consistent winner." At 48 instances
 that did **not** hold: `claude-code` is *worst* on K2.6 (14) and second on K2.7 (22), while
 `default·K2.7` leads. The small-N result was noise — at n=16 a 1–3 instance lead sits inside
-one standard error (see the significance note above). The honest cross-study read is now:
-**no single prompt dominates; the best scaffold depends on the model, and on the strongest
-model no scaffold beats the default.**
+one standard error. The honest read: **no single prompt dominates; the best scaffold depends
+on the model, and on the strongest model no scaffold beats the default.**
 
-Cross-band caveat: the requests band ran on the Mac (bare env, no in-solve `pytest`), this
-band on the server (agents could `pip install` + run tests). So differences *between* the
-two bake-offs are confounded by environment; only the within-band arm-to-arm deltas here are
-clean. Cost: the harder band runs ~0.7–1.3M tokens/instance (bigger repos + test loops);
-`default`/`sharp` are the frugal arms, the autonomous `kimi-cline` the most expensive.
+## Third model: GLM-5.2 (default prompt)
 
-Reproducibility: the whole run is driven by `ab/server/` (setup + parallel predict
-+ disk-guarded eval). It surfaced — and the harness now fixes — three reliability
-gaps: predict-hang retries (`--retries`), a real concurrency cap (`xargs -P`), and
-confining agent `pip` installs to the throwaway workdir (`PYTHONUSERBASE`) so they
-don't pollute the host.
+To check whether the default-prompt result generalizes beyond Kimi, we added a third
+model — **GLM-5.2** (also via Fireworks) — on the **default prompt only**, same 48-instance
+harder band. Re-run on a fresh x86-64 box with native Docker + in-solve `pip`/`pytest` (the
+same environment *kind* as the Kimi runs, not the literal same machine). That box has root
+Docker, so the 5 matplotlib instances grade here and are reported separately to keep the
+/43 figure apples-to-apples with the Kimi columns.
+
+| model (default prompt) | resolved /43 | total tokens | avg tools/inst |
+|---|:---:|:---:|:---:|
+| K2.6        | 16/43 (37%) | 35M | 25 |
+| K2.7        | 25/43 (58%) | 41M | 26 |
+| **GLM-5.2** | **26/43 (60%)** | **~12M** | **11** |
+
+**GLM-5.2 on the default prompt ties the strongest Kimi at the top** — 26/43 vs K2.7's
+25/43 (a 1-instance gap, statistically indistinguishable), both well above K2.6's 16/43.
+Per-repo it is strong on `pydata/xarray` (7/7), `sympy` (5/8) and `sklearn` (4/8), weak on
+`django` (1/4) and `sphinx` (3/7). On the 5 matplotlib instances (bonus, root-docker only)
+it resolves 3/5 — 29/48 overall.
+
+Two behavioral notes matter more than the headline number:
+
+1. **High empty-patch rate.** GLM-5.2 returned **12/48 empty patches** — it often ended a
+   trajectory without committing any source edit. But when it *did* commit it was accurate:
+   **26 of its 32 non-empty /43 patches resolved (81%)**. High-precision, lower-recall — the
+   opposite of a model that edits eagerly but sloppily.
+2. **Terse trajectory, heavy environment use.** ~244k tokens and only ~11 tool calls per
+   instance — **3–4× fewer model tokens than the Kimi default arms** — yet ~457s/instance,
+   because it leaned on in-solve `pip install` + `pytest` over model reasoning. (Token/tool
+   counts are harness-reported via opencode's session db.)
+
+**A harness bug this run exposed (and we fixed).** GLM's aggressive installing surfaced a
+latent leak: the harness puts `PYTHONUSERBASE` and `PIP_CACHE_DIR` *inside* the throwaway
+workdir (for host hygiene), but `extract_patch`'s `git add -A` then swept the entire
+installed `site-packages` (254 MB) and pip cache into the model patch — bloating GLM's raw
+diffs to 25 MB. The Kimi runs were unaffected (they read+edited rather than installing), so
+their numbers stand. We (a) re-derived GLM's patches by stripping `.pyuserbase`/`.pipcache`
+(the real edits were intact underneath) and (b) fixed `extract_patch` to exclude both dirs
+going forward. The 26/43 above is on the cleaned, correctly-graded patches.
+
+This extends the default-prompt story: **the bare default prompt is competitive-to-best
+across all three models, and the two strongest (K2.7, GLM-5.2) sit together at the top on
+it** — reinforcing that on capable models, scaffolding is not where the wins are.
+
+## Merged view across both bands
+
+The right metric differs by band, so the merge is faceted, not a naive sum:
+
+- **easy band (n=8):** *fix-correctness* (FAIL_TO_PASS-only — the model's own bug-fix
+  tests pass). Strict resolved here is a flat ~2/8 *environmental* floor (HTTPS/timeout
+  PASS_TO_PASS tests that no local httpbin can serve — see below), so it carries no model
+  signal; fix-correctness is the real measurement.
+- **harder band (n=43):** *strict resolved*. Those repos have no network dependence, so
+  strict ≈ fix-correctness — directly poolable with the easy-band fix-correctness.
+
+| prompt | easy **K2.6** | easy **K2.7** | hard-43 **K2.6** | hard-43 **K2.7** | **pooled /51 K2.6** | **pooled /51 K2.7** |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| default | 6/8 | 6/8 | 16 (37%) | **25 (58%)** | 22 (43%) | **31 (61%)** |
+| claude-code | 7/8 | 7/8 | 14 (33%) | 22 (51%) | 21 (41%) | 29 (57%) |
+| cursor  | 7/8 | 7/8 | 20 (47%) | 17 (40%) | 27 (53%) | 24 (47%) |
+| sharp   | 7/8 | 7/8 | **21 (49%)** | 18 (42%) | **28 (55%)** | 25 (49%) |
+| kimi-cline (balanced)   | 7/8 | 7/8 | 18 (42%) | 13 (30%) | 25 (49%) | 20 (39%) |
+| kimi-cline (autonomous) | 7/8 | 6/8 | 19 (44%) | 20 (47%) | 26 (51%) | 26 (51%) |
+
+*(pooled = easy fix-correctness + hard strict, out of 8+43 = 51; both terms are fix-correctness.)*
+
+**The easy band adds no discriminative signal.** Every arm sits at 6–7/8, so pooling
+just shifts everyone by ~+7. The **pooled ranking is identical to the harder-band
+ranking** for both models (K2.7: default > claude-code > kcauto > sharp > cursor > kcbal;
+K2.6: sharp > cursor > kcauto > kcbal > default > claude-code). The 48-instance band
+drives the entire result; the easy band is confirmatory ballast — and the sign-flip with
+model strength survives the merge intact.
+
+## Easy band (8 `psf/requests`), re-graded clean — and a retraction
+
+The first version of this doc made the easy band the spine and reported a sharp
+"two-families" split: hygiene/UI-tuned prompts (`sharp` 2/8, `cursor` 3/8) supposedly
+*regressing* far below `default` (6/8), and `claude-code` standing out at a perfect 8/8
+on K2.7. **That split does not survive clean grading. We retract it.**
+
+**Why it was wrong.** The `psf/requests` test suite makes real `httpbin` calls in *both*
+FAIL_TO_PASS and PASS_TO_PASS tests (`HTTPBIN = os.environ.get('HTTPBIN_URL',
+'http://httpbin.org/')`). Arms are graded sequentially, and `httpbin.org` flaked during
+the run (503s, `JSONDecodeError`, connection timeouts). So an arm's score partly recorded
+*httpbin's uptime during its slot*, not the model's fix. We caught a hint of this at the
+time — `k27_kimicline` scored 5/8 raw but was really 8/8 once the three "failures" were
+traced to network flake (one was byte-identical to the gold patch) — but underestimated
+how much it contaminated *every* arm.
+
+**The fix: deterministic re-grade.** We re-ran the grader against a **local** httpbin
+(`kennethreitz/httpbin` on an `--internal` Docker network aliased to `httpbin.org`, env-gated
+into the eval containers), so every arm is graded under identical, offline conditions — no
+external service, no temporal flake. Two views per arm:
+
+| prompt | strict K2.6 | **fix-correct K2.6** | strict K2.7 | **fix-correct K2.7** |
+|---|:---:|:---:|:---:|:---:|
+| default | 1/8 | **6/8** | 2/8 | **6/8** |
+| claude-code | 2/8 | **7/8** | 2/8 | **7/8** |
+| cursor  | 2/8 | **7/8** | 2/8 | **7/8** |
+| sharp   | 2/8 | **7/8** | 2/8 | **7/8** |
+| kimi-cline (balanced)   | 2/8 | **7/8** | 2/8 | **7/8** |
+| kimi-cline (autonomous) | 2/8 | **7/8** | 2/8 | **6/8** |
+
+Two things fall out:
+
+1. **Fix-correctness is uniform 6–7/8 — no family split, no standout.** Under identical
+   grading, `sharp` and `cursor` are *not* regressing (7/8, not 2–3/8), and `claude-code`
+   is not a standout (7/8, not 8/8). The original 2/8→8/8 spread was overwhelmingly
+   httpbin temporal flake during sequential runs.
+2. **Strict resolved is an environmental floor (~2/8), not a model measurement.** It's
+   pinned down by PASS_TO_PASS tests that fail *uniformly across all 12 arm-runs* because
+   no local httpbin can serve them — the counts prove the uniformity:
+
+   | failing PASS_TO_PASS test | count over 12 arm-runs | why |
+   |---|:---:|---|
+   | `test_mixed_case_scheme_acceptable` | 48 | needs HTTPS |
+   | `test_pyopenssl_redirect` | 24 | needs SSL |
+   | `test_connect_timeout` | 24 | asserts real connect-*timeout*; internal net refuses instantly |
+   | `test_total_timeout_connect` | 24 | same |
+   | `test_auth_is_stripped_on_redirect_off_host` | 12 | needs a second host |
+   | `test_stream_timeout` | 12 | timeout behavior |
+
+   Every arm loses the same instances to these, so strict resolved on this band measures
+   the test harness's network environment, not Kimi. That is why the merged view uses
+   fix-correctness for the easy band.
+
+**Net:** on this easy band every prompt is interchangeable (6–7/8) on fix-correctness, and
+the old strict numbers are retired. The only honest easy-band statement is "near-ceiling
+for all arms, no separation" — which is what the merged view encodes.
+
+## Cost & efficiency (predict-phase)
+
+Grading flakes don't touch the **predict** phase, so the cost numbers from the original
+8-instance run stand. `latency` = wall-clock of the opencode run; `tokens` = total
+in+out from the isolated session db; `tools` = tool calls. Averaged over the 8 instances
+per arm (this run included two extra easy-band-only arms, `codex-coding` and `cline`, kept
+here as cost datapoints).
+
+| prompt | model | avg latency | avg tokens | avg tool calls |
+|--------|-------|-------------|------------|----------------|
+| default      | K2.6 | 95s  | 731k | 25.4 |
+| default      | K2.7 | 72s  | 728k | 25.2 |
+| sharp        | K2.6 | 87s  | 652k | 24.9 |
+| sharp        | K2.7 | 86s  | **530k** | 23.4 |
+| cursor       | K2.6 | 149s | 814k | 26.0 |
+| cursor       | K2.7 | 254s | 751k | 27.4 |
+| codex-coding | K2.6 | 93s  | 517k | 18.8 |
+| codex-coding | K2.7 | 158s | 607k | 24.5 |
+| claude-code  | K2.6 | 123s | 676k | 22.4 |
+| claude-code  | K2.7 | 178s | 575k | 25.6 |
+| cline        | K2.6 | 140s | 541k | 25.9 |
+| cline        | K2.7 | 295s | 908k | 31.2 |
+
+![Avg latency per instance, by prompt × model](charts/cost-latency.svg)
+
+![Avg tokens per instance, by prompt × model](charts/cost-tokens.svg)
+
+![Avg tool calls per instance, by prompt × model](charts/cost-tools.svg)
+
+<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG), rendered from
+`bake-off-cost.csv` — the benchmark's own output via `swe_bench.py aggregate`. Blue =
+K2.6, orange = K2.7.</sub>
+
+Grading-independent reads (these don't lean on resolved rate):
+- **`codex-coding` and `sharp` are the frugal arms** — fewest tokens/tool-calls (codex
+  18.8 calls / 517k tok on K2.6; sharp 530k on K2.7). Terse, plan-first styles cut
+  exploration. On the 48-band `sharp` stays the cheapest ($9.9 on K2.7).
+- **`cline`/`kimi-cline (autonomous)` are the expensive arms** — verbose, step-enumerating
+  styles inflate tokens and tool calls (cline 908k / 31 calls on K2.7; kcauto 64M / 40
+  tools / $15 on the 48-band) without a matching resolved-rate gain.
+- **Latency is the noisiest axis** (Fireworks queue + network + some eval-VM contention on
+  K2.6's early instances); read absolute seconds as directional, token/tool counts as stable.
+
+## What's real vs what's noise
+
+- **The previously-claimed significant result is gone.** The earlier doc ran Fisher exact
+  on the easy-band "family split" (`sharp` 6/16 vs `claude-code` 15/16 → p=0.002) and
+  called it the part to trust. With the split exposed as a grading artifact, that test was
+  fitting noise in httpbin's uptime. Retired.
+- **On the easy band, clean grading separates nothing** — 6–7/8 for all six arms, both
+  models. The Wilson CIs at n=8 are enormous (6/8 → [0.41, 0.93]); there is nothing to rank.
+- **On the harder band, the arm-to-arm gaps are within ~1 standard error.** A 1–3 instance
+  lead at n=43 (≈ SE of ±3–4 on a ~40–60% rate) is not separable. What *is* robust is the
+  *direction*: the sign-flip with model strength is consistent across every scaffold (all
+  help K2.6 except claude-code; all hurt K2.7), and it's the same story in the pooled /51.
+- **K2.6 ≈ K2.7 on solvability**, differing in failure-mode/cost more than in what they can
+  solve — consistent with every other study in this repo.
+
+**Bottom line: trust the direction (scaffolds help the weaker model, hurt the stronger;
+no prompt dominates) and the cost ordering; don't rank arms within a band.** A clean ranking
+would need pass@k over a larger hard-band sample.
+
+## Pipeline
+- **Predict**: `swe_bench.py` — clone repo@base_commit, run opencode+Kimi on the
+  issue, extract `git diff` (excluding test files + `opencode.json`) as the model_patch.
+  Custom prompts are seeded as an opencode agent via `--agent-prompt`. Two bring-up bugs
+  fixed early: run opencode with `cwd=<workdir>` (else it inherits this repo's `.opencode`
+  config and never converges), and an action-forcing prompt line (else the model
+  rabbit-holes into reproduction and never edits). `--retries` guards the Fireworks-hang
+  class (a hung call → 600s timeout → empty patch).
+- **Eval**: official swebench. On the Mac via **colima** with `--vm-type vz --vz-rosetta`
+  (runs SWE-bench's x86 images via Rosetta; podman's docker-compat API was unusable); on
+  the server via native Docker. `eval_runner.py` runs arms **sequentially** and is the
+  driver for the deterministic local-httpbin re-grade (env-gated `SWEBENCH_NETWORK` +
+  `SWEBENCH_HTTPBIN_URL` route eval containers to a local `httpbin` so `psf/requests`
+  grading no longer depends on a live external service).
+- The server run surfaced — and the harness now fixes — three reliability gaps:
+  predict-hang retries (`--retries`), a real concurrency cap (`xargs -P`), and confining
+  agent `pip` installs to the throwaway workdir (`PYTHONUSERBASE`) so they don't pollute
+  the host.
 
 ## Caveats (why this isn't the final word)
-- **n=8, one repo, easy band.** All requests instances are "<15 min – 1 hour",
-  pure-Python. The signal-bearing instances live in django/sympy/sklearn
-  ("1–4 hours", ">4 hours") — exactly where a stronger model could pull ahead and
-  where requests-only can't show it.
-- 1 attempt/instance (no pass@k). A single empty patch swings the rate by 12.5%.
-- To actually rank the models you'd want ~50–100 instances spanning hard repos.
-  The pipeline now supports that; it's just (emulated-eval) wall-clock and disk.
+- **The harder band is n=43, 1 attempt/instance (no pass@k).** Arm-to-arm gaps sit inside
+  one standard error; only the cross-arm *direction* (the sign-flip) is robust.
+- **The easy band is at the ceiling** for every arm on fix-correctness and is network-bound
+  on strict grading — it's a control, not a discriminator.
+- **Cross-band differences are confounded by environment**: the easy band ran on the Mac
+  (bare env, no in-solve `pytest`), the harder band on the server (agents could `pip install`
+  + run tests). Only within-band arm-to-arm deltas are clean.
+- To actually *rank* prompts you'd want pass@k over ~100+ hard-band instances. The pipeline
+  now supports that; it's just (emulated-eval) wall-clock and disk.
 
 ## Repro
 ```bash
 # 1) predict (writes preds_*.jsonl + a preds_*.meta.json sidecar with
 #    per-instance duration_s / tokens / tool_calls)
-python3 swe_bench.py predict --model k2.6 --repos psf/requests --out preds_k26.jsonl
-python3 swe_bench.py predict --model k2.7 --repos psf/requests --out preds_k27.jsonl
+python3 swe_bench.py predict --model k2.7 --repos psf/requests \
+    --agent-prompt system-prompts/claude-code/...interactive-cli.oc-adapted.md \
+    --out preds_k27.jsonl
 
 # 2) eval (colima running; DOCKER_HOST = colima socket)
-python -m swebench.harness.run_evaluation --dataset_name princeton-nlp/SWE-bench_Verified \
-    --predictions_path preds_k26.jsonl --run_id req_k26 --namespace swebench
+python3 eval_runner.py --report-dir eval --arm claude_k27 preds_k27.jsonl
 
-# 3) aggregate each arm's meta.json (+ its resolved count) into the cost CSV,
-#    then re-render the charts from it — no hand-edited numbers
-python3 swe_bench.py aggregate --meta preds_k26.meta.json --prompt default --resolved 6/8
+# 2b) deterministic re-grade of the requests band against a LOCAL httpbin
+#     (no external service, no temporal flake)
+SWEBENCH_NETWORK=swebench-httpbin SWEBENCH_HTTPBIN_URL=http://httpbin-local/ \
+    python3 eval_runner.py --report-dir eval_kr --workers 1 --no-flake-reeval \
+    --arm claude_k27 preds_k27.jsonl
+
+# 3) aggregate each arm's meta.json into the cost CSV, then re-render the charts
+python3 swe_bench.py aggregate --meta preds_k27.meta.json --prompt claude-code
 python3 make_cost_charts.py          # bake-off-cost.csv -> charts/cost-*.svg
 ```
 
-The committed `bake-off-cost.csv` + `charts/*.svg` are the snapshot from the run
-above (the raw `preds_*`/`*.meta.json`/eval reports are gitignored).
+The committed `bake-off-cost.csv` + `charts/*.svg` are the predict-phase snapshot
+(the raw `preds_*`/`*.meta.json`/eval reports are gitignored).
