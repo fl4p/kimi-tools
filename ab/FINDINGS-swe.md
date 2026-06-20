@@ -40,9 +40,9 @@ harder band × all six prompts** (the signal-bearing comparison).
    that flaked during sequential arm runs. A deterministic re-grade collapses the
    spread to 6–7/8 for all arms. The split is retired; see **Easy band, re-graded**.
 6. **A frontier *closed* model doesn't clear the bar here.** Claude Opus 4.8 at `xhigh`
-   reasoning effort, on the `claude-code` prompt, resolves **36/43 (84%)** — within noise
-   of well-prompted GLM-5.2 (its 35–37/43 arms), not above — at ~**$52/arm** vs GLM's
-   Fireworks pennies. See **Opus 4.8 (xhigh) — a cross-family probe**.
+   reasoning effort resolves **35–36/43** on its `claude-code` and `cursor` arms — within
+   noise of well-prompted GLM-5.2 (its 35–37/43 arms), not above — at ~**$44–52/arm** vs
+   GLM's Fireworks pennies. See **Opus 4.8 (xhigh) — a cross-family probe**.
 
 ## Headline — harder band (8 repos, 48 instances, on a server)
 
@@ -117,28 +117,35 @@ model-specific** — true for K2.7 (no scaffold beats default) but the *opposite
 
 ## Opus 4.8 (xhigh) — a cross-family probe
 
-Does a frontier *closed* model clear this band? We ran one cross-family probe: **Claude
-Opus 4.8 at `xhigh` reasoning effort** (Anthropic, via opencode `run --variant xhigh`),
-on the `claude-code` prompt — same 48-instance harder band, same harness, graded
+Does a frontier *closed* model clear this band? We ran two cross-family probes: **Claude
+Opus 4.8 at `xhigh` reasoning effort** (Anthropic, via opencode `run --variant xhigh`), on
+the `claude-code` and `cursor` prompts — same 48-instance harder band, same harness, graded
 identically.
 
 | arm | resolved /48 | resolved /43 | empty | cost | tokens |
 |-----|:---:|:---:|:---:|:---:|:---:|
 | opus-4.8-xhigh · claude-code | 40/48 | **36/43 (84%)** | 1 | $52.46 | 48.6M |
+| opus-4.8-xhigh · cursor      | 40/48 | **35/43 (81%)** | 3 | $43.71 | 40.2M |
 
-**It lands in GLM-5.2's strong-arm range, not above it.** 36/43 sits between GLM-5.2's own
-`claude-code` (35/43) and its best arm `cursor` (37/43) — within noise of well-prompted
-GLM-5.2, not a leap. So on this band a frontier closed model at high reasoning effort ≈ a
-well-scaffolded open model, at very different cost: **$52 for the single arm** versus
-GLM-5.2's Fireworks pennies. (That $52 is the cache-aware figure opencode reports per step;
-the blended rate is ~$1.1/M token — most of the 48.6M tokens are cache-reads at $0.5/M, not
-fresh input at $5/M or output at $25/M, so a naive tokens×rate estimate overshoots ~3–5×.)
-Opus drove a decisive edit loop — only **1/48** empty (vs GLM-5.2's 4/48 on the same
-prompt) — so the empty-patch failure mode that gates GLM-5.2 is not what caps Opus here.
+**Both land in GLM-5.2's strong-arm range, not above it.** The two probes resolve 35–36/43:
+Opus's `claude-code` (36) edges its `cursor` (35), and both sit within noise of well-prompted
+GLM-5.2 (35–37/43), below its `cursor` peak (37). So a frontier closed model at high reasoning
+effort ≈ a well-scaffolded open model on this band — at very different cost (**~$44–52/arm,
+~$96 for the pair**) vs GLM-5.2's Fireworks pennies. (The `$` is the cache-aware figure
+opencode reports per step; blended ~$1.1/M token — most of the 40–49M tokens are cache-reads
+at $0.5/M, not fresh input at $5/M or output at $25/M, so a naive tokens×rate estimate
+overshoots ~3–5×.)
 
-<sub>One prompt, not the full six — a single comparable data point, not a prompt-sensitivity
-column. Anthropic via opencode is **API-key only** (no Claude Pro/Max OAuth in this build);
-reasoning effort is per-run with `opencode run --variant high|xhigh|max`.</sub>
+**Opus's prompt sensitivity is flat — the opposite of GLM-5.2's.** Where GLM-5.2 swings ≈+10/43
+from bare `default` to its best scaffold, Opus barely moves between its two strong scaffolds
+(claude 36 vs cursor 35), and `cursor` actually *raised* its empty rate (3/48 vs 1/48) instead
+of lowering it. Opus already drives a decisive edit loop, so extra scaffolding neither helps
+nor much hurts — closer to K2.7's "wants no scaffold" profile than to GLM-5.2's.
+
+<sub>Two of six prompts, and not the bare `default` baseline — a partial read of Opus's
+prompt sensitivity, not a full column. Anthropic via opencode is **API-key only** (no Claude
+Pro/Max OAuth in this build); reasoning effort is per-run with `opencode run --variant
+high|xhigh|max`.</sub>
 
 ## GLM-5.2 notes (empty-patch mechanism + a harness leak)
 
