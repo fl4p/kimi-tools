@@ -30,15 +30,18 @@ Resolved out of **43** — 5 matplotlib instances are excluded for cross-model
 comparability (their prebuilt eval images won't unpack on the grading box; a host
 constraint, not a model failure).
 
-| prompt | K2.6 | K2.7 | GLM-5.2 |
-|--------|:----:|:----:|:-------:|
-| **default** (opencode) | 16/43 | **25/43** | 26/43 |
-| sharp | **21/43** | 18/43 | 29/43 |
-| cursor | 20/43 | 17/43 | **37/43 (86%)** |
-| kimi-cline (autonomous) | 19/43 | 20/43 | 34/43 |
-| kimi-cline (balanced) | 18/43 | 13/43 | 27/43 |
-| claude-code | 14/43 | 22/43 | 35/43 |
-| **best / worst arm** | sharp 21 / claude 14 | **default 25** / kcbal 13 | **cursor 37** / default 26 |
+| prompt | K2.6 | K2.7 | GLM-5.2 | Opus-4.8 (xhigh) |
+|--------|:----:|:----:|:-------:|:----------------:|
+| **default** (opencode) | 16/43 | **25/43** | 26/43 | — |
+| sharp | **21/43** | 18/43 | 29/43 | — |
+| cursor | 20/43 | 17/43 | **37/43 (86%)** | 35/43 |
+| kimi-cline (autonomous) | 19/43 | 20/43 | 34/43 | — |
+| kimi-cline (balanced) | 18/43 | 13/43 | 27/43 | — |
+| claude-code | 14/43 | 22/43 | 35/43 | **36/43 (84%)** |
+| **best / worst arm** | sharp 21 / claude 14 | **default 25** / kcbal 13 | **cursor 37** / default 26 | claude 36 / cursor 35 |
+
+<sub>**Opus-4.8 (xhigh)** is a cross-family probe — only its `cursor` and `claude-code`
+arms were run (`—` = not run); details and cost in [Opus 4.8 below](#opus-48--a-cross-family-probe).</sub>
 
 ![Resolved rate by prompt × model](ab/charts/bakeoff-resolved.svg)
 

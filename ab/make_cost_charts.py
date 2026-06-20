@@ -21,7 +21,7 @@ OUT.mkdir(exist_ok=True)
 
 # theme (dark, GitHub-renderable)
 BG, FG, MUTED, GRID = "#111", "#ddd", "#888", "#333"
-COLORS = ["#6aa9ff", "#f0a35e", "#7ed09a"]  # one per model, in first-seen order
+COLORS = ["#6aa9ff", "#f0a35e", "#7ed09a", "#c792ea"]  # one per model, first-seen order
 W, H = 760, 400
 ML, MR, MT, MB = 72, 20, 56, 84
 PW, PH = W - ML - MR, H - MT - MB
@@ -63,29 +63,31 @@ def chart(title, unit, prompts, models, series, ymax, ticks, suffix, decimals=0)
 
     nb = len(models)
     gw = PW / len(prompts)          # group width
-    bw = min(26, (gw - 18) / nb)    # bar width fits the group
-    span = bw * nb + 6 * (nb - 1)   # total width of the bars in a group
+    gap = 5
+    bw = min(24, (gw - 22) / nb)    # bar width fits the group, with padding
+    span = bw * nb + gap * (nb - 1) # total width of the bars in a group
     for i, p in enumerate(prompts):
         cx = PX0 + gw * i + gw / 2  # group center
         x = cx - span / 2
         for j, mdl in enumerate(models):
-            v = series[p][mdl]
-            bh = PH * (v / ymax)
-            y = PY0 - bh
-            s.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:g}" height="{bh:.1f}" '
-                     f'fill="{COLORS[j % len(COLORS)]}" rx="2"/>')
-            s.append(f'<text x="{x+bw/2:.1f}" y="{y-5:.1f}" fill="{FG}" font-size="10" '
-                     f'text-anchor="middle">{v:.{decimals}f}{suffix}</text>')
-            x += bw + 6
+            v = series[p].get(mdl)  # a model may not run every prompt -> empty slot
+            if v is not None:
+                bh = PH * (v / ymax)
+                y = PY0 - bh
+                s.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:g}" height="{bh:.1f}" '
+                         f'fill="{COLORS[j % len(COLORS)]}" rx="2"/>')
+                s.append(f'<text x="{x+bw/2:.1f}" y="{y-5:.1f}" fill="{FG}" font-size="10" '
+                         f'text-anchor="middle">{v:.{decimals}f}{suffix}</text>')
+            x += bw + gap
         s.append(f'<text x="{cx:.1f}" y="{PY0+18}" fill="{FG}" font-size="11.5" '
                  f'text-anchor="middle">{esc(p)}</text>')
 
     s.append(f'<line x1="{PX0}" y1="{PY0}" x2="{PX0+PW}" y2="{PY0}" stroke="{MUTED}" stroke-width="1"/>')
-    lx = ML  # legend
+    lx = ML  # legend — adaptive spacing so long labels (e.g. Opus-xhigh) don't collide
     for j, mdl in enumerate(models):
-        s.append(f'<rect x="{lx}" y="{H-31}" width="12" height="12" fill="{COLORS[j % len(COLORS)]}" rx="2"/>')
-        s.append(f'<text x="{lx+18}" y="{H-21}" fill="{FG}" font-size="12">{esc(mdl)}</text>')
-        lx += 96
+        s.append(f'<rect x="{lx:.0f}" y="{H-31}" width="12" height="12" fill="{COLORS[j % len(COLORS)]}" rx="2"/>')
+        s.append(f'<text x="{lx+18:.0f}" y="{H-21}" fill="{FG}" font-size="12">{esc(mdl)}</text>')
+        lx += 30 + len(mdl) * 7.2
     s.append('</svg>')
     return "\n".join(s)
 
