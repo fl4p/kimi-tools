@@ -39,6 +39,10 @@ harder band × all six prompts** (the signal-bearing comparison).
    **grading artifact** — the `psf/requests` suite hammers a live `httpbin` service
    that flaked during sequential arm runs. A deterministic re-grade collapses the
    spread to 6–7/8 for all arms. The split is retired; see **Easy band, re-graded**.
+6. **A frontier *closed* model doesn't clear the bar here.** Claude Opus 4.8 at `xhigh`
+   reasoning effort, on the `claude-code` prompt, resolves **36/43 (84%)** — within noise
+   of well-prompted GLM-5.2 (its 35–37/43 arms), not above — at ~**$52/arm** vs GLM's
+   Fireworks pennies. See **Opus 4.8 (xhigh) — a cross-family probe**.
 
 ## Headline — harder band (8 repos, 48 instances, on a server)
 
@@ -110,6 +114,31 @@ that did **not** hold: `claude-code` is *worst* on K2.6 (14) and second on K2.7 
 one standard error. The honest read: **no single prompt dominates; the best scaffold is
 model-specific** — true for K2.7 (no scaffold beats default) but the *opposite* for GLM-5.2
 (every good scaffold beats default by a wide margin).
+
+## Opus 4.8 (xhigh) — a cross-family probe
+
+Does a frontier *closed* model clear this band? We ran one cross-family probe: **Claude
+Opus 4.8 at `xhigh` reasoning effort** (Anthropic, via opencode `run --variant xhigh`),
+on the `claude-code` prompt — same 48-instance harder band, same harness, graded
+identically.
+
+| arm | resolved /48 | resolved /43 | empty | cost | tokens |
+|-----|:---:|:---:|:---:|:---:|:---:|
+| opus-4.8-xhigh · claude-code | 40/48 | **36/43 (84%)** | 1 | $52.46 | 48.6M |
+
+**It lands in GLM-5.2's strong-arm range, not above it.** 36/43 sits between GLM-5.2's own
+`claude-code` (35/43) and its best arm `cursor` (37/43) — within noise of well-prompted
+GLM-5.2, not a leap. So on this band a frontier closed model at high reasoning effort ≈ a
+well-scaffolded open model, at very different cost: **$52 for the single arm** versus
+GLM-5.2's Fireworks pennies. (That $52 is the cache-aware figure opencode reports per step;
+the blended rate is ~$1.1/M token — most of the 48.6M tokens are cache-reads at $0.5/M, not
+fresh input at $5/M or output at $25/M, so a naive tokens×rate estimate overshoots ~3–5×.)
+Opus drove a decisive edit loop — only **1/48** empty (vs GLM-5.2's 4/48 on the same
+prompt) — so the empty-patch failure mode that gates GLM-5.2 is not what caps Opus here.
+
+<sub>One prompt, not the full six — a single comparable data point, not a prompt-sensitivity
+column. Anthropic via opencode is **API-key only** (no Claude Pro/Max OAuth in this build);
+reasoning effort is per-run with `opencode run --variant high|xhigh|max`.</sub>
 
 ## GLM-5.2 notes (empty-patch mechanism + a harness leak)
 

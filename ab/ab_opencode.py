@@ -49,6 +49,17 @@ MODELS = {
     "k2.6": "fireworks-ai/accounts/fireworks/models/kimi-k2p6",
     "k2.7": "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code",
     "glm5.2": "fireworks-ai/accounts/fireworks/models/glm-5p2",
+    # Anthropic Opus 4.8, two reasoning-effort arms. The model id is identical;
+    # the arms differ only by `opencode run --variant <effort>` (see VARIANTS),
+    # which sets provider-specific reasoning effort. Needs ANTHROPIC_API_KEY in
+    # env (opencode reads it for the anthropic provider).
+    "opus4.8-high": "anthropic/claude-opus-4-8",
+    "opus4.8-xhigh": "anthropic/claude-opus-4-8",
+}
+# Per-arm reasoning effort -> opencode `--variant`. Absent = no variant flag.
+VARIANTS = {
+    "opus4.8-high": "high",
+    "opus4.8-xhigh": "xhigh",
 }
 CUSTOM_AGENT = "kimi-sys"
 
@@ -208,6 +219,8 @@ def run_trial(args, arm: Arm, scenario: Scenario, trial: int,
                "--dir", str(workdir), "--format", "json"]
         if arm.custom:
             cmd += ["--agent", CUSTOM_AGENT]
+        if VARIANTS.get(arm.model_key):
+            cmd += ["--variant", VARIANTS[arm.model_key]]
         cmd += [scenario.prompt]
 
         start = time.perf_counter()

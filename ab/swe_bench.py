@@ -38,7 +38,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ab_opencode import MODELS, parse_opencode  # noqa: E402
+from ab_opencode import MODELS, VARIANTS, parse_opencode  # noqa: E402
 
 DATASET = "princeton-nlp/SWE-bench_Verified"
 CUSTOM_AGENT = "kimi-sys"   # name of the seeded custom-prompt agent (opencode.json)
@@ -227,6 +227,10 @@ def predict_one(inst: dict, model_key: str, opencode_bin: str, timeout: int,
                                                 "prompt": "{file:" + str(agent_prompt) + "}"}}}
                 (wd / "opencode.json").write_text(json.dumps(cfg, indent=2))
                 cmd += ["--agent", CUSTOM_AGENT]
+            # Reasoning-effort arms (e.g. Opus 4.8 high/xhigh) share a model id and
+            # differ only by --variant. Fireworks arms have no entry -> no flag.
+            if VARIANTS.get(model_key):
+                cmd += ["--variant", VARIANTS[model_key]]
             cmd += [prompt]
         # HARDENING: agents often `pip install -e .` / install deps to run the
         # repo's tests. Without isolation that lands in the HOST's ~/.local
@@ -269,7 +273,8 @@ def predict_one(inst: dict, model_key: str, opencode_bin: str, timeout: int,
             tokens = getattr(parse, "tokens", None)
             tool_calls = getattr(parse, "tool_calls", None)
             cost = getattr(parse, "cost", None)
-            label = f"kimi-{model_key}"
+            label = (f"kimi-{model_key}"
+                     if MODELS[model_key].startswith("fireworks") else f"oc-{model_key}")
         patch = extract_patch(wd, test_files_of(inst["test_patch"]))
         meta = {
             "instance_id": iid, "repo": repo, "model": model_key,
