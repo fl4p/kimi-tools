@@ -328,6 +328,47 @@ Grading-independent reads (these don't lean on resolved rate):
 no prompt dominates) and the cost ordering; don't rank arms within a band.** A clean ranking
 would need pass@k over a larger hard-band sample.
 
+## Compliance, not capability: the attempt-rate decomposition
+
+A resolved instance needs two things: the model must **attempt** an edit (non-empty patch)
+*and* the edit must be **correct**. Splitting the score into *attempt rate* (1 − empty) and
+*conditional quality* (resolved | attempted) shows the prompt mostly buys the first.
+
+| model | prompt | resolved/48 | empty | attempt % | correct \| attempted |
+|---|---|:--:|:--:|:--:|:--:|
+| GLM-5.2 | default | 29 | 12 | 75% | 81% |
+| GLM-5.2 | sharp | 32 | 5 | 90% | 74% |
+| GLM-5.2 | cursor | **40** | 4 | 92% | **91%** |
+| GLM-5.2 | kcauto | 38 | 1 | **98%** | 81% |
+| GLM-5.2 | kcbal | 30 | 9 | 81% | 77% |
+| GLM-5.2 | claude | 39 | 4 | 92% | 89% |
+| Opus-4.8-xhigh | cursor | 40 | 3 | 94% | 89% |
+| Opus-4.8-xhigh | claude | 40 | 1 | **98%** | 85% |
+
+<sub>Kimi K2.6/K2.7 omitted — their harder-band predict metadata was not retained, so the
+split can't be reconstructed without a re-run.</sub>
+
+- **~60% of GLM-5.2's headline gain is just follow-through.** Its best swing, `default`→
+  `cursor` (+11 resolved): hold conditional quality at default's 81% and lift only the
+  attempt rate 75%→92% — that alone predicts ~36 resolved (**+6.5**); the actual 40 means the
+  remaining **+4.5** is better patches (81%→91%). So roughly **60% compliance, 40% quality.**
+- **The prompt moves two independent knobs.** `kcauto` makes GLM finish *everything* (98%
+  attempt) but writes mediocre patches (81%); `sharp` makes it act (90%) but its *worst*
+  patches (74%). "Make the model act" and "make it act well" are separate axes; `cursor` wins
+  by maxing both.
+- **Opus shows the effect is ceiling-limited.** Opus barely bails (1–3 empty, 94–98%
+  attempt) → almost no attempt-rate headroom → the prompt has nothing to move and both arms
+  tie at 40. **The size of any prompt effect is set by how much the model bails on its
+  default**: GLM bails a lot → large effect; Opus (and K2.7, which scaffolds *hurt*) already
+  finish → the prompt can only jiggle quality, sometimes downward.
+
+**The honest mechanism is behavioral, not capability:** the prompt's main job is to stop the
+model abandoning the edit loop. The secondary quality component is real but small — and given
+the suspiciously high absolute conditional-correct (74–91% on SWE-bench Verified), some of it
+is likely the prompt's style interfering more or less with a **memorized** fix rather than
+improving reasoning. Read the bake-off as *prompt-induced follow-through on a possibly-
+contaminated benchmark*, not coding capability. The decisive test is a post-cutoff run (Caveats).
+
 ## Pipeline
 - **Predict**: `swe_bench.py` — clone repo@base_commit, run opencode+Kimi on the
   issue, extract `git diff` (excluding test files + `opencode.json`) as the model_patch.
@@ -358,6 +399,13 @@ would need pass@k over a larger hard-band sample.
   + run tests). Only within-band arm-to-arm deltas are clean.
 - To actually *rank* prompts you'd want pass@k over ~100+ hard-band instances. The pipeline
   now supports that; it's just (emulated-eval) wall-clock and disk.
+- **Contamination is unaddressed — and this is the big one.** SWE-bench Verified is public,
+  pre-cutoff, drawn from popular repos these models were almost certainly trained on, and
+  SWE-bench memorization is documented. The high conditional-correct rates (see *Compliance,
+  not capability*) are consistent with partial retrieval. Nothing here separates "solved"
+  from "recalled"; the prompt may be modulating *follow-through on a remembered fix*. A
+  post-training-cutoff or private held-out set is required before claiming any prompt effect
+  generalizes out-of-sample.
 
 ## Repro
 ```bash

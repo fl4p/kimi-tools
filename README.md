@@ -2,8 +2,10 @@
 
 A small benchmark that answers one practical question: **does the agent system
 prompt change how much a coding model can solve — and is the best prompt the same
-across models?** Short answer: the prompt matters a lot, and **the best prompt is
-model-specific**, not ordered by model strength.
+across models?** Short answer: the prompt matters, **the best prompt is
+model-specific** (not ordered by model strength) — but mostly because it changes
+*whether the model commits an edit at all*, not how well it reasons. Read
+[What this measures](#what-this-measures-and-what-it-doesnt) before over-reading the table.
 
 It runs real coding-agent system prompts (Claude Code, Cursor, `sharp`, and our two
 Kimi-tuned `kimi-cline` prompts) through the **opencode** harness against
@@ -102,6 +104,25 @@ patch-extraction leak we found & fixed: **[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe
 > live `httpbin` service that flaked during sequential runs; a deterministic re-grade
 > collapses it to 6–7/8 for every arm. The easy band can't separate the prompts and is
 > kept only as a near-ceiling control. See [FINDINGS → Easy band, re-graded](ab/FINDINGS-swe.md).
+
+## What this measures (and what it doesn't)
+
+Don't read the table as "prompt P makes the model a better coder." Decomposing each score
+into *attempt rate* (did it commit an edit?) and *conditional quality* (was the edit correct,
+given it tried) shows the prompt mostly buys the **first**:
+
+- **~60% of GLM-5.2's biggest gain (`default`→`cursor`, +11) is just follow-through** — the
+  attempt rate going 75%→92%. Only ~40% is better patches. GLM bails without editing **12/48**
+  times on bare `default`; the scaffold's job is to stop it bailing.
+- **The effect is ceiling-limited.** Opus-4.8 barely bails (94–98% attempt) so the prompt has
+  nothing to move — both its arms tie. K2.7 already finishes, so scaffolds only add noise and
+  *hurt* it. The size of any prompt effect is set by how much a model abandons the edit loop on
+  its default, not by how much "better" the prompt makes it.
+- **Likely contamination.** SWE-bench Verified is public and pre-cutoff; these models were
+  almost certainly trained on these repos. The high conditional-correct rates (74–91%) are
+  consistent with partly *recalling* fixes. Nothing here separates "solved" from "remembered" —
+  a **post-cutoff / held-out** run is needed before claiming any of this generalizes
+  out-of-sample. Full decomposition + threats: [FINDINGS → Compliance, not capability](ab/FINDINGS-swe.md#compliance-not-capability-the-attempt-rate-decomposition).
 
 ## Repo layout
 
