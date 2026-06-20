@@ -1,120 +1,128 @@
 # kimi-tools
 
-A small benchmark that answers one practical question: **for Kimi K2 coding
-agents, does the system prompt actually change task success — and which prompt
-is best?**
+A small benchmark that answers one practical question: **does the agent system
+prompt change how much a coding model can solve — and is the best prompt the same
+across models?** Short answer: the prompt matters a lot, and **the best prompt is
+model-specific**, not ordered by model strength.
 
-It runs real coding-agent system prompts (Claude Code, Codex, Cursor, Cline, and
-two Kimi-tuned ones) through the **opencode** harness against
+It runs real coding-agent system prompts (Claude Code, Cursor, `sharp`, and our two
+Kimi-tuned `kimi-cline` prompts) through the **opencode** harness against
 [**SWE-bench Verified**](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified)
-real GitHub issues, scored by the official
-`swebench.harness.run_evaluation` (hidden FAIL_TO_PASS / PASS_TO_PASS tests).
-Models: **Kimi K2.6** and **K2.7** via Fireworks.
+— real GitHub issues scored by the official `swebench.harness.run_evaluation`
+(hidden FAIL_TO_PASS / PASS_TO_PASS tests). Models: **Kimi K2.6**, **Kimi K2.7**,
+and **GLM-5.2** via Fireworks, plus a **Claude Opus 4.8** cross-family probe.
 
-> **Note — Fireworks + Kimi thinking mode.** `kimi-k2p7-code` (K2.7) is a
-> reasoning model; `kimi-k2p6` (K2.6) is not. On Fireworks, **run K2.7 with
-> thinking left ON** — in an endpoint micro-benchmark, *disabling* reasoning on
-> the `-code` model blew up time-to-first-token to **~26 s** (vs **~0.5 s** with
-> it on) and the model emitted reasoning tokens anyway, so turning it off bought
-> nothing and cost a lot. K2.6 is unaffected — ~0.4 s TTFT and ~106 tok/s either
-> way. Every run here uses K2.7 in its native thinking mode.
+> **Note — Fireworks + Kimi thinking mode.** `kimi-k2p7-code` (K2.7) is a reasoning
+> model; `kimi-k2p6` (K2.6) is not. On Fireworks, **run K2.7 with thinking left
+> ON** — in an endpoint micro-benchmark, *disabling* reasoning on the `-code` model
+> blew time-to-first-token up to **~26 s** (vs **~0.5 s** with it on) and the model
+> emitted reasoning tokens anyway, so turning it off bought nothing and cost a lot.
+> K2.6 is unaffected. Every run here uses K2.7 in its native thinking mode.
 
-## Headline result — system-prompt bake-off
+## Headline — system-prompt bake-off (harder band)
 
-6 prompts × 2 models, same 8 `psf/requests` instances, swapping only the agent
-system prompt. `default` = opencode's built-in coding prompt; the other five use
-(modified) [system prompts](system-prompts/).
+**48 instances across 8 repos** (sympy, scikit-learn, sphinx, xarray, matplotlib,
+astropy, pytest, django — the "15 min–1 h" and "1–4 h" difficulty bands), 3 models ×
+6 prompts, swapping only the agent system prompt. `default` = opencode's built-in
+coding prompt; the other five are (adapted) [system prompts](system-prompts/).
 
-| prompt | K2.6 | K2.7 | source |
-|--------|------|------|--------|
-| **default** (opencode) | 6/8 | 6/8 | opencode built-in |
-| sharp | 2/8 | 4/8 | Kimi tool-hygiene-tuned |
-| cursor | 3/8 | 4/8 | Cursor Composer (leak) |
-| codex-coding | 7/8 | 6/8 | OpenAI Codex `base_instructions` |
-| **claude-code** | 7/8 | **8/8** | Claude Code interactive CLI |
-| cline (native-next-gen) | 7/8 | 7/8 | Cline default |
+Resolved out of **43** — 5 matplotlib instances are excluded for cross-model
+comparability (their prebuilt eval images won't unpack on the grading box; a host
+constraint, not a model failure).
 
-Cells = **resolved instances out of 8** (1 attempt each). Per-arm **cost** —
-latency, tokens, tool calls — is in the [charts below](#cost-at-a-glance) and the
-sortable table.
+| prompt | K2.6 | K2.7 | GLM-5.2 |
+|--------|:----:|:----:|:-------:|
+| **default** (opencode) | 16/43 | **25/43** | 26/43 |
+| sharp | **21/43** | 18/43 | 29/43 |
+| cursor | 20/43 | 17/43 | **37/43 (86%)** |
+| kimi-cline (autonomous) | 19/43 | 20/43 | 34/43 |
+| kimi-cline (balanced) | 18/43 | 13/43 | 27/43 |
+| claude-code | 14/43 | 22/43 | 35/43 |
+| **best / worst arm** | sharp 21 / claude 14 | **default 25** / kcbal 13 | **cursor 37** / default 26 |
 
-📊 **[Sortable version](https://htmlpreview.github.io/?https://github.com/fl4p/kimi-tools/blob/main/ab/bake-off.html)**
-— the full 12-row per-model table ([`ab/bake-off.html`](ab/bake-off.html)) with
-click-to-sort columns. (GitHub READMEs can't run JS, so the sortable view is a
-standalone page.)
+![Resolved rate by prompt × model](ab/charts/bakeoff-resolved.svg)
 
-**Per-model averages** (across all 6 prompts, per-instance):
+**There is no universal best prompt — and it is not ordered by model strength.**
+Each model has a *different* best arm:
 
-| model | avg latency | avg tokens | avg tools |
-|-------|-------------|------------|-----------|
-| K2.6  | 115s | 655k | 23.9 |
-| K2.7  | 174s | 683k | 26.2 |
+1. **K2.6 (weakest) likes light scaffolding** — `sharp` (21) and `cursor` (20) beat
+   bare `default` (16); only `claude-code` (14) trails it.
+2. **K2.7 wants no scaffold** — bare `default` wins (25) and every custom prompt
+   *hurts*, down to `kcbal` (13). The least instruction is best.
+3. **GLM-5.2 wants scaffolding badly** — `cursor` (**37/43, 86%**), `claude-code`
+   (35), `kcauto` (34) tower over bare `default` (26), which is GLM-5.2's *worst* arm.
 
-Across the whole prompt set K2.7 averaged slower and did slightly more work — the
-reverse of the `default`-only slice (where K2.7 was faster) — yet the two models
-**tie on what they resolve**. Latency is noisy, so read this as "comparable work,
-no capability gap," not a clean speed ranking.
+**The mechanism is the empty-patch rate.** Under bare `default`, GLM-5.2 ends
+**12/48** trajectories without committing any source edit; the coding-agent scaffolds
+("edit the source, don't stop at analysis"; verify before finishing) cut that to
+**1–4**, and the resolved-rate gain tracks the empty-rate drop almost exactly. K2.7
+already drives a decisive edit loop on `default`, so the same scaffolds only add
+friction. At its best, **GLM-5.2 is the strongest model on this band** (cursor 37/43
+vs the best Kimi arm's 25/43) — and the **cheapest**.
 
-### Cost at a glance
+### Cost — by prompt × model
 
-![Avg latency per instance, by prompt × model](ab/charts/cost-latency.svg)
+![Tokens per arm](ab/charts/bakeoff-tokens.svg)
 
-![Avg tokens per instance, by prompt × model](ab/charts/cost-tokens.svg)
+![Tool calls per instance](ab/charts/bakeoff-tools.svg)
 
-![Avg tool calls per instance, by prompt × model](ab/charts/cost-tools.svg)
+GLM-5.2 is not just strongest at its best, it's **cheapest everywhere** — ~12–27 M
+tokens/arm vs Kimi's 35–64 M, with the fewest tool calls. Charts are rendered by
+[`ab/make_cost_charts.py`](ab/make_cost_charts.py) (pure-stdlib SVG, no matplotlib)
+from [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv).
 
-Blue = K2.6, orange = K2.7. `cursor`/`cline` on K2.7 are the expensive outliers;
-`codex-coding` is cheapest-and-correct (fewest tool calls *and* tokens at the
-best resolved rate). Charts are rendered by
-[`ab/make_cost_charts.py`](ab/make_cost_charts.py) (pure-stdlib SVG) from
-[`ab/bake-off-cost.csv`](ab/bake-off-cost.csv) — the benchmark's own output
-(`swe_bench.py aggregate`), not hand-entered numbers.
+### Opus 4.8 — a cross-family probe
 
-**Two clean families:**
+Does a frontier *closed* model clear this band? Two probes — **Claude Opus 4.8 at
+`xhigh` reasoning effort** (Anthropic, via opencode `--variant xhigh`), on the
+`claude-code` and `cursor` prompts:
 
-1. **Harness-/terseness-tuned prompts regress** (`sharp`, `cursor`) — they were
-   tuned for tool-hygiene metrics or a different UI, and on real tasks they trade
-   correctness for concision.
-2. **Real general coding-agent prompts match or beat the default**
-   (`codex-coding`, `claude-code`, `cline`) — all land at 7–8/8. They were built
-   to drive a read→edit→verify loop on real repos, so they transfer even after
-   tool-name adaptation.
+| arm | resolved /43 | empty | cost |
+|-----|:---:|:---:|:---:|
+| opus-4.8-xhigh · claude-code | **36/43 (84%)** | 1 | $52.46 |
+| opus-4.8-xhigh · cursor | **35/43 (81%)** | 3 | $43.71 |
 
-**Takeaways:** `claude-code` on K2.7 is the only arm to hit **8/8**, helped by its
-"edit the source, don't stop at analysis" discipline. `codex-coding` is the
-**efficiency winner** (best/tied resolved at the fewest tokens + tool calls). And
-across every run, **K2.6 ≈ K2.7 on what they can solve** — they differ only in
-latency/cost/failure-shape, not capability, at this difficulty band.
+It lands **in GLM-5.2's strong-arm range (35–37/43), not above it** — a frontier
+closed model at high effort ≈ well-scaffolded GLM-5.2 here, at ~**$96 for the pair**
+vs GLM's Fireworks pennies. And Opus's prompt sensitivity is **flat** (claude 36 ≈
+cursor 35) — closer to K2.7's "no scaffold needed" than to GLM-5.2's big swing.
 
-⚠️ **Significance:** at n=8 only the *family split* is statistically real
-(`sharp`/`cursor` regress: p ≈ 0.002–0.006). The ranking *within* the good family
-— claude-code 8/8 vs codex/cline/default — is **not** significant (p ≈ 0.3–0.6,
-CIs overlap almost entirely). Trust the direction, not the top-four order. Details:
-[`ab/FINDINGS-swe.md` → Statistical significance](ab/FINDINGS-swe.md#statistical-significance).
+⚠️ **Significance.** The one large, robust prompt effect is **GLM-5.2's scaffold-vs-
+default gap (≈ +10/43)**. The *within-model* Kimi deltas are mostly within ~1 standard
+error — trust "K2.7 prefers no scaffold / GLM-5.2 needs one," not the exact 1–2
+instance orderings. Full numbers, cost profiles, the empty-patch analysis, and a
+patch-extraction leak we found & fixed: **[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md)**.
 
-→ Full tables, cost profiles, the sharp-prompt regression, and caveats:
-**[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md)**.
+> **The easy band is retired as a headline.** An earlier version of this README led
+> with 8 `psf/requests` instances and a dramatic "family split" (`sharp` 2/8 vs
+> `claude-code` 8/8). That spread was a **grading artifact** — the suite hammers a
+> live `httpbin` service that flaked during sequential runs; a deterministic re-grade
+> collapses it to 6–7/8 for every arm. The easy band can't separate the prompts and is
+> kept only as a near-ceiling control. See [FINDINGS → Easy band, re-graded](ab/FINDINGS-swe.md).
 
 ## Repo layout
 
 | Path | What |
 |------|------|
-| [`ab/`](ab/) | The benchmark harnesses (cline, opencode, pi) + `swe_bench.py` predict/eval + all `FINDINGS-*.md`. |
-| [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md) | The SWE-bench results above, in full. |
-| [`ab/README.md`](ab/README.md) | How to run the A/B harness. |
+| [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md) | The SWE-bench results above, in full (3 models × 6 prompts + the Opus probe). |
+| [`ab/`](ab/) | The benchmark harnesses + `swe_bench.py` (predict/eval/aggregate) + all `FINDINGS-*.md`. |
 | [`ab/README-swe.md`](ab/README-swe.md) | How to run the SWE-bench predict + eval pipeline. |
-| [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv) | Cost-profile data (`swe_bench.py aggregate` output); [`make_cost_charts.py`](ab/make_cost_charts.py) renders it to `ab/charts/*.svg`. |
-| [`system-prompts/`](system-prompts/) | Every prompt the bake-off runs — `claude-code/`, `codex/`, `cursor/`, `cline/`, `kimi/`, `sharp.md`, plus our own `kimi-cline/`. Each external one keeps the raw extract and an `.oc-adapted.md` opencode port. |
+| [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv) | Harder-band data (resolved/43, tokens, tools); [`make_cost_charts.py`](ab/make_cost_charts.py) renders it to `ab/charts/bakeoff-*.svg`. |
+| [`system-prompts/`](system-prompts/) | Every prompt the bake-off runs — `claude-code/`, `cursor/`, `sharp.md`, plus our own `kimi-cline/`. Each external one keeps the raw extract and an `.oc-adapted.md` opencode port. |
 | [`system-prompts/kimi-cline/`](system-prompts/kimi-cline/) | **Our two Kimi-tuned cline prompts** (balanced + autonomous) — see [its README](system-prompts/kimi-cline/README.md). |
 
 ## Quick start
 
 ```bash
-# A/B harness, no API needed — prove the pipeline works:
-cd ab && python3 ab_bench.py --self-test && python3 ab_bench.py --dry-run
+# SWE-bench predict (opencode + a Fireworks model):
+python3 ab/swe_bench.py predict --model glm5.2 --repos psf/requests --out preds.jsonl
 
-# SWE-bench predict (opencode + Kimi via Fireworks):
-python3 ab/swe_bench.py predict --model k2.7 --repos psf/requests --out preds.jsonl
+# Opus 4.8 at a reasoning-effort variant (needs ANTHROPIC_API_KEY in env):
+python3 ab/swe_bench.py predict --model opus4.8-xhigh --instances astropy__astropy-12907 \
+    --agent-prompt system-prompts/claude-code/2.1.178/interactive-cli.oc-adapted.md --out preds.jsonl
+
+# Regenerate the cost charts from the CSV:
+python3 ab/make_cost_charts.py
 ```
 
 See [`ab/README-swe.md`](ab/README-swe.md) for the colima/Docker eval setup.

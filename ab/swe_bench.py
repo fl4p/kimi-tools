@@ -368,8 +368,9 @@ def cmd_list(args):
 
 
 # columns of bake-off-cost.csv (what make_cost_charts.py reads)
-COST_COLS = ["prompt", "model", "resolved", "total", "latency_s", "tokens_k", "tool_calls"]
-MODEL_LABEL = {"k2.6": "K2.6", "k2.7": "K2.7"}
+COST_COLS = ["prompt", "model", "resolved", "total", "tokens_m", "tool_calls"]
+MODEL_LABEL = {"k2.6": "K2.6", "k2.7": "K2.7", "glm5.2": "GLM-5.2",
+               "opus4.8-high": "Opus-4.8-high", "opus4.8-xhigh": "Opus-4.8-xhigh"}
 
 
 def _resolved_from_report(path: Path):
@@ -397,6 +398,10 @@ def cmd_aggregate(args):
         vals = [m[key] for m in metas if m.get(key) is not None]
         return round(sum(vals) / len(vals) / scale, 1) if vals else ""
 
+    def tot(key, scale=1.0):
+        vals = [m[key] for m in metas if m.get(key) is not None]
+        return round(sum(vals) / scale) if vals else ""
+
     model = args.model_label or MODEL_LABEL.get(
         (metas[0].get("model") or "").lower(), metas[0].get("model", "?"))
 
@@ -410,8 +415,8 @@ def cmd_aggregate(args):
 
     row = {"prompt": args.prompt, "model": model,
            "resolved": resolved, "total": total,
-           "latency_s": avg("duration_s"), "tokens_k": avg("tokens", 1000.0),
-           "tool_calls": avg("tool_calls")}
+           "tokens_m": tot("tokens", 1_000_000.0),
+           "tool_calls": round(avg("tool_calls") or 0)}
 
     csv_path = Path(args.csv)
     rows = []

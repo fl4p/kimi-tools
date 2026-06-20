@@ -285,15 +285,18 @@ here as cost datapoints).
 | cline        | K2.6 | 140s | 541k | 25.9 |
 | cline        | K2.7 | 295s | 908k | 31.2 |
 
-![Avg latency per instance, by prompt × model](charts/cost-latency.svg)
+The table above is the easy-band (n=8) predict cost. The charts below are the
+**harder band** — the signal-bearing run, 3 models × 6 prompts — resolved rate plus
+the two cost axes:
 
-![Avg tokens per instance, by prompt × model](charts/cost-tokens.svg)
+![Resolved — by prompt × model](charts/bakeoff-resolved.svg)
 
-![Avg tool calls per instance, by prompt × model](charts/cost-tools.svg)
+![Tokens per arm — by prompt × model](charts/bakeoff-tokens.svg)
 
-<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG), rendered from
-`bake-off-cost.csv` — the benchmark's own output via `swe_bench.py aggregate`. Blue =
-K2.6, orange = K2.7.</sub>
+![Tool calls per instance — by prompt × model](charts/bakeoff-tools.svg)
+
+<sub>Charts: `python3 make_cost_charts.py` (pure-stdlib SVG) from `bake-off-cost.csv`
+(harder band, resolved out of 43). Blue = K2.6, orange = K2.7, green = GLM-5.2.</sub>
 
 Grading-independent reads (these don't lean on resolved rate):
 - **`codex-coding` and `sharp` are the frugal arms** — fewest tokens/tool-calls (codex
@@ -375,7 +378,7 @@ SWEBENCH_NETWORK=swebench-httpbin SWEBENCH_HTTPBIN_URL=http://httpbin-local/ \
 
 # 3) aggregate each arm's meta.json into the cost CSV, then re-render the charts
 python3 swe_bench.py aggregate --meta preds_k27.meta.json --prompt claude-code
-python3 make_cost_charts.py          # bake-off-cost.csv -> charts/cost-*.svg
+python3 make_cost_charts.py          # bake-off-cost.csv -> charts/bakeoff-*.svg
 ```
 
 The committed `bake-off-cost.csv` + `charts/*.svg` are the predict-phase snapshot
