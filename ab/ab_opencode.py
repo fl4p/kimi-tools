@@ -49,6 +49,7 @@ MODELS = {
     "k2.6": "fireworks-ai/accounts/fireworks/models/kimi-k2p6",
     "k2.7": "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code",
     "glm5.2": "fireworks-ai/accounts/fireworks/models/glm-5p2",
+    "deepseek4": "fireworks-ai/accounts/fireworks/models/deepseek-v4-pro",
     # Anthropic Opus 4.8, two reasoning-effort arms. The model id is identical;
     # the arms differ only by `opencode run --variant <effort>` (see VARIANTS),
     # which sets provider-specific reasoning effort. Needs ANTHROPIC_API_KEY in
