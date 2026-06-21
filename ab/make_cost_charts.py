@@ -96,7 +96,7 @@ def main():
     prompts, models, data = load(DATA)
     specs = [
         ("resolved", "Resolved — by prompt × model (harder band)",
-         "instances resolved / 43 (higher is better)", 43, [0, 10, 20, 30, 40], "", 0),
+         "instances resolved / 48 (higher is better)", 48, [0, 12, 24, 36, 48], "", 0),
         ("tokens", "Tokens per arm — by prompt × model",
          "millions, 48 instances (lower is better)", 70, [0, 14, 28, 42, 56, 70], "M", 0),
         ("tools", "Tool calls per instance — by prompt × model",

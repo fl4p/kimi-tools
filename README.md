@@ -11,8 +11,8 @@ It runs real coding-agent system prompts (Claude Code, Cursor, `sharp`, and our 
 Kimi-tuned `kimi-cline` prompts) through the **opencode** harness against
 [**SWE-bench Verified**](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified)
 — real GitHub issues scored by the official `swebench.harness.run_evaluation`
-(hidden FAIL_TO_PASS / PASS_TO_PASS tests). Models: **Kimi K2.6**, **Kimi K2.7**,
-and **GLM-5.2** via Fireworks, plus a **Claude Opus 4.8** cross-family probe.
+(hidden FAIL_TO_PASS / PASS_TO_PASS tests). Models: **GLM-5.2**, **DeepSeek-V4-Pro**,
+and **Kimi K2.6 / K2.7** via Fireworks, plus a **Claude Opus 4.8** cross-family probe.
 
 > **Note — Fireworks + Kimi thinking mode.** `kimi-k2p7-code` (K2.7) is a reasoning
 > model; `kimi-k2p6` (K2.6) is not. On Fireworks, **run K2.7 with thinking left
@@ -24,46 +24,55 @@ and **GLM-5.2** via Fireworks, plus a **Claude Opus 4.8** cross-family probe.
 ## Headline — system-prompt bake-off (harder band)
 
 **48 instances across 8 repos** (sympy, scikit-learn, sphinx, xarray, matplotlib,
-astropy, pytest, django — the "15 min–1 h" and "1–4 h" difficulty bands), 3 models ×
-6 prompts, swapping only the agent system prompt. `default` = opencode's built-in
-coding prompt; the other five are (adapted) [system prompts](system-prompts/).
+astropy, pytest, django — the "15 min–1 h" and "1–4 h" difficulty bands), swapping
+only the agent system prompt. `default` = opencode's built-in coding prompt; the
+other five are (adapted) [system prompts](system-prompts/). Resolved out of the
+full **48** (every instance grades on the Linux eval host).
 
-Resolved out of **43** — 5 matplotlib instances are excluded for cross-model
-comparability (their prebuilt eval images won't unpack on the grading box; a host
-constraint, not a model failure).
-
-| prompt | K2.6 | K2.7 | GLM-5.2 | Opus-4.8 (xhigh) |
-|--------|:----:|:----:|:-------:|:----------------:|
-| **default** (opencode) | 16/43 | **25/43** | 26/43 | — |
-| sharp | **21/43** | 18/43 | 29/43 | — |
-| cursor | 20/43 | 17/43 | **37/43 (86%)** | 35/43 |
-| kimi-cline (autonomous) | 19/43 | 20/43 | 34/43 | — |
-| kimi-cline (balanced) | 18/43 | 13/43 | 27/43 | — |
-| claude-code | 14/43 | 22/43 | 35/43 | **36/43 (84%)** |
-| **best / worst arm** | sharp 21 / claude 14 | **default 25** / kcbal 13 | **cursor 37** / default 26 | claude 36 / cursor 35 |
+| prompt | GLM-5.2 | DeepSeek-V4-Pro | Opus-4.8 (xhigh) |
+|--------|:-------:|:---------------:|:----------------:|
+| **default** (opencode) | 29/48 | 21/48 | — |
+| sharp | 32/48 | 25/48 | — |
+| cursor | **40/48 (83%)** | 22/48 | **40/48 (83%)** |
+| kimi-cline (autonomous) | 38/48 | **26/48** | — |
+| kimi-cline (balanced) | 30/48 | 25/48 | — |
+| claude-code | 39/48 | 25/48 | **40/48 (83%)** |
+| codex | — | 24/48 | — |
+| **best / worst arm** | **cursor 40** / default 29 | **kcauto 26** / default 21 | cursor 40 / claude 40 |
 
 <sub>**Opus-4.8 (xhigh)** is a cross-family probe — only its `cursor` and `claude-code`
-arms were run (`—` = not run); details and cost in [Opus 4.8 below](#opus-48--a-cross-family-probe).</sub>
+arms were run (`—` = not run); details and cost in [Opus 4.8 below](#opus-48--a-cross-family-probe).
+**Kimi K2.6 / K2.7** are being re-graded to `/48` (their harder-band predictions are
+re-running) and rejoin this table shortly.</sub>
+
+> **Why `/48` now (was `/43`).** An earlier version reported `/43`, excluding 5
+> matplotlib instances whose prebuilt eval images wouldn't unpack on a **macOS/colima**
+> grading box. On the Linux eval host all 48 grade cleanly, so every number here is the
+> honest full-band grade — which lifts each model ~3–4 instances vs the old `/43`
+> (e.g. GLM `cursor` 37/43 → **40/48**).
 
 ![Resolved rate by prompt × model](ab/charts/bakeoff-resolved.svg)
 
 **There is no universal best prompt — and it is not ordered by model strength.**
 Each model has a *different* best arm:
 
-1. **K2.6 (weakest) likes light scaffolding** — `sharp` (21) and `cursor` (20) beat
-   bare `default` (16); only `claude-code` (14) trails it.
-2. **K2.7 wants no scaffold** — bare `default` wins (25) and every custom prompt
-   *hurts*, down to `kcbal` (13). The least instruction is best.
-3. **GLM-5.2 wants scaffolding badly** — `cursor` (**37/43, 86%**), `claude-code`
-   (35), `kcauto` (34) tower over bare `default` (26), which is GLM-5.2's *worst* arm.
+1. **GLM-5.2 wants scaffolding badly** — `cursor` (**40/48, 83%**), `claude-code`
+   (39), `kcauto` (38) tower over bare `default` (29), which is GLM-5.2's *worst* arm.
+2. **DeepSeek-V4-Pro is flat and ceiling-limited** — every arm lands in a narrow
+   **21–26/48** band; its best is the `kimi-cline` autonomous prompt (26), and bare
+   `default` (21) its worst, but the whole swing is ~5 instances. The prompt barely
+   moves it.
+
+(Kimi K2.6/K2.7's per-model story rejoins here once their `/48` re-grade lands.)
 
 **The mechanism is the empty-patch rate.** Under bare `default`, GLM-5.2 ends
 **12/48** trajectories without committing any source edit; the coding-agent scaffolds
 ("edit the source, don't stop at analysis"; verify before finishing) cut that to
-**1–4**, and the resolved-rate gain tracks the empty-rate drop almost exactly. K2.7
-already drives a decisive edit loop on `default`, so the same scaffolds only add
-friction. At its best, **GLM-5.2 is the strongest model on this band** (cursor 37/43
-vs the best Kimi arm's 25/43) — and the **cheapest**.
+**1–4**, and the resolved-rate gain tracks the empty-rate drop almost exactly.
+**DeepSeek behaves oppositely**: it barely bails on *any* prompt (2–4 empty/48
+everywhere), so the scaffold has no attempt-rate to buy — it commits confidently and
+is simply *wrong* more often. Decisiveness ≠ capability. At its best, **GLM-5.2 is the
+strongest open-weight model on this band** (cursor 40/48) — and the **cheapest**.
 
 ### Cost — by prompt × model
 
@@ -72,7 +81,9 @@ vs the best Kimi arm's 25/43) — and the **cheapest**.
 ![Tool calls per instance](ab/charts/bakeoff-tools.svg)
 
 GLM-5.2 is not just strongest at its best, it's **cheapest everywhere** — ~12–27 M
-tokens/arm vs Kimi's 35–64 M, with the fewest tool calls. Charts are rendered by
+tokens/arm and the fewest tool calls. **DeepSeek-V4-Pro is not the bargain its lean
+tool count suggests**: 21–42 M tokens/arm (≈2× GLM) and 15–30 calls/instance — its
+decisive loop still burns GLM-plus tokens for a lower resolve. Charts are rendered by
 [`ab/make_cost_charts.py`](ab/make_cost_charts.py) (pure-stdlib SVG, no matplotlib)
 from [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv).
 
@@ -82,21 +93,22 @@ Does a frontier *closed* model clear this band? Two probes — **Claude Opus 4.8
 `xhigh` reasoning effort** (Anthropic, via opencode `--variant xhigh`), on the
 `claude-code` and `cursor` prompts:
 
-| arm | resolved /43 | empty | cost |
+| arm | resolved /48 | empty | cost |
 |-----|:---:|:---:|:---:|
-| opus-4.8-xhigh · claude-code | **36/43 (84%)** | 1 | $52.46 |
-| opus-4.8-xhigh · cursor | **35/43 (81%)** | 3 | $43.71 |
+| opus-4.8-xhigh · claude-code | **40/48 (83%)** | 1 | $52.46 |
+| opus-4.8-xhigh · cursor | **40/48 (83%)** | 3 | $43.71 |
 
-It lands **in GLM-5.2's strong-arm range (35–37/43), not above it** — a frontier
+It lands **level with GLM-5.2's strong arms (40/48), not above them** — a frontier
 closed model at high effort ≈ well-scaffolded GLM-5.2 here, at ~**$96 for the pair**
-vs GLM's Fireworks pennies. And Opus's prompt sensitivity is **flat** (claude 36 ≈
-cursor 35) — closer to K2.7's "no scaffold needed" than to GLM-5.2's big swing.
+vs GLM's Fireworks pennies. And Opus's prompt sensitivity is **flat** (claude = cursor
+= 40) — a "no scaffold needed" profile, like DeepSeek's, not GLM-5.2's big swing.
 
 ⚠️ **Significance.** The one large, robust prompt effect is **GLM-5.2's scaffold-vs-
-default gap (≈ +10/43)**. The *within-model* Kimi deltas are mostly within ~1 standard
-error — trust "K2.7 prefers no scaffold / GLM-5.2 needs one," not the exact 1–2
-instance orderings. Full numbers, cost profiles, the empty-patch analysis, and a
-patch-extraction leak we found & fixed: **[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md)**.
+default gap (≈ +11/48)**. DeepSeek's whole prompt swing (~5/48) and Opus's (0) are
+small by comparison — trust "GLM needs a scaffold / DeepSeek & Opus don't move much,"
+not the exact 1–2 instance orderings. Full numbers, cost profiles, the empty-patch
+analysis, and a patch-extraction leak we found & fixed:
+**[`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md)**.
 
 > **The easy band is retired as a headline.** An earlier version of this README led
 > with 8 `psf/requests` instances and a dramatic "family split" (`sharp` 2/8 vs
@@ -131,7 +143,7 @@ given it tried) shows the prompt mostly buys the **first**:
 | [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md) | The SWE-bench results above, in full (3 models × 6 prompts + the Opus probe). |
 | [`ab/`](ab/) | The benchmark harnesses + `swe_bench.py` (predict/eval/aggregate) + all `FINDINGS-*.md`. |
 | [`ab/README-swe.md`](ab/README-swe.md) | How to run the SWE-bench predict + eval pipeline. |
-| [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv) | Harder-band data (resolved/43, tokens, tools); [`make_cost_charts.py`](ab/make_cost_charts.py) renders it to `ab/charts/bakeoff-*.svg`. |
+| [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv) | Harder-band data (resolved/48, tokens, tools); [`make_cost_charts.py`](ab/make_cost_charts.py) renders it to `ab/charts/bakeoff-*.svg`. |
 | [`system-prompts/`](system-prompts/) | Every prompt the bake-off runs — `claude-code/`, `cursor/`, `sharp.md`, plus our own `kimi-cline/`. Each external one keeps the raw extract and an `.oc-adapted.md` opencode port. |
 | [`system-prompts/kimi-cline/`](system-prompts/kimi-cline/) | **Our two Kimi-tuned cline prompts** (balanced + autonomous) — see [its README](system-prompts/kimi-cline/README.md). |
 
