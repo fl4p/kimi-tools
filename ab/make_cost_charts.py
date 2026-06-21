@@ -21,7 +21,7 @@ OUT.mkdir(exist_ok=True)
 
 # theme (dark, GitHub-renderable)
 BG, FG, MUTED, GRID = "#111", "#ddd", "#888", "#333"
-COLORS = ["#6aa9ff", "#f0a35e", "#7ed09a", "#c792ea"]  # one per model, first-seen order
+COLORS = ["#6aa9ff", "#f0a35e", "#7ed09a", "#c792ea", "#e06c75"]  # one per model, first-seen order
 W, H = 760, 400
 ML, MR, MT, MB = 72, 20, 56, 84
 PW, PH = W - ML - MR, H - MT - MB
@@ -98,9 +98,9 @@ def main():
         ("resolved", "Resolved — by prompt × model (harder band)",
          "instances resolved / 48 (higher is better)", 48, [0, 12, 24, 36, 48], "", 0),
         ("tokens", "Tokens per arm — by prompt × model",
-         "millions, 48 instances (lower is better)", 70, [0, 14, 28, 42, 56, 70], "M", 0),
+         "millions, 48 instances (lower is better)", 140, [0, 35, 70, 105, 140], "M", 0),
         ("tools", "Tool calls per instance — by prompt × model",
-         "avg calls (lower is better)", 45, [0, 15, 30, 45], "", 0),
+         "avg calls (lower is better)", 55, [0, 15, 30, 45], "", 0),
     ]
     for metric, title, unit, ymax, ticks, suffix, decimals in specs:
         svg = chart(title, unit, prompts, models, data[metric], ymax, ticks, suffix, decimals)

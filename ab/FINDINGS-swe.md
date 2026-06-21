@@ -1,5 +1,14 @@
 # SWE-bench Verified: Kimi K2.6 / K2.7 / GLM-5.2 — system-prompt bake-off
 
+> ⚠️ **This document predates the `/48` re-baseline and the Kimi re-run — its numbers
+> below are the OLD `/43` grades, and its Kimi numbers are from a run later found to be
+> degraded.** For the current, authoritative results (all four models incl.
+> DeepSeek-V4-Pro, graded `/48`, with corrected Kimi numbers) see the
+> [README headline table](../README.md#headline--system-prompt-bake-off-harder-band).
+> The methodology, decomposition, easy-band re-grade, and patch-leak sections here are
+> still valid; only the specific resolved counts are superseded. A full rewrite of this
+> file to `/48` is pending.
+
 Scored by the **official** `swebench.harness.run_evaluation` — real GitHub issues
 with hidden FAIL_TO_PASS / PASS_TO_PASS grading tests. We run opencode (via Fireworks)
 on each issue, extract the `git diff`, and grade it. The question: does swapping the
