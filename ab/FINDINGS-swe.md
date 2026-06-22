@@ -183,6 +183,8 @@ one that falls furthest on novel tasks — the textbook contamination signature.
 should be read as "K2.7/GLM/Opus all reach ~40 *on problems they may have seen*," not as a
 durable capability ranking; out-of-sample, **Opus > GLM > K2.7**.
 
+![Same models, two benchmarks — the ranking inverts](charts/generalization.svg)
+
 ## Opus 4.8 (xhigh) — a cross-family probe
 
 Does a frontier *closed* model clear this band? Two cross-family probes — **Claude Opus 4.8

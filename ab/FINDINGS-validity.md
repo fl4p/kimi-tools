@@ -85,6 +85,8 @@ DeepSWE (wholly novel) — and K2.7 falls monotonically across it (40–42 → 7
 GLM/Opus degrade far less. That is independent, larger-N confirmation of the core finding:
 the SWE-bench-Verified ordering is substantially a familiarity artifact, worst for K2.7.
 
+![Same models, two benchmarks — the ranking inverts](charts/generalization.svg)
+
 ## Caveats
 
 - **N = 30, one month, two models.** The GLM cursor−default gap post-cutoff is ±1

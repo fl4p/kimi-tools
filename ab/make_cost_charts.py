@@ -13,6 +13,7 @@ tools}.svg, which FINDINGS-swe.md and the README embed.
     python3 make_cost_charts.py
 """
 import csv
+import math
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -50,7 +51,7 @@ def esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def chart(title, unit, prompts, models, series, ymax, ticks, suffix, decimals=0):
+def chart(title, unit, prompts, models, series, ymax, ticks, suffix, decimals=0, errn=None):
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
          f'viewBox="0 0 {W} {H}" font-family="-apple-system,Segoe UI,Roboto,sans-serif">']
     s.append(f'<rect width="{W}" height="{H}" fill="{BG}" rx="8"/>')
@@ -77,7 +78,18 @@ def chart(title, unit, prompts, models, series, ymax, ticks, suffix, decimals=0)
                 y = PY0 - bh
                 s.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:g}" height="{bh:.1f}" '
                          f'fill="{COLORS[j % len(COLORS)]}" rx="2"/>')
-                s.append(f'<text x="{x+bw/2:.1f}" y="{y-5:.1f}" fill="{FG}" font-size="10" '
+                lbl_y = y - 5
+                if errn:  # binomial SE whisker (in count units) so a within-noise gap reads as one
+                    pr = min(max(v / errn, 0.0), 1.0)
+                    se_px = PH * (math.sqrt(pr * (1 - pr) * errn) / ymax)
+                    xc = x + bw / 2
+                    for yy in (y - se_px, y + se_px):
+                        s.append(f'<line x1="{xc-3:.1f}" y1="{yy:.1f}" x2="{xc+3:.1f}" y2="{yy:.1f}" '
+                                 f'stroke="{FG}" stroke-width="1.2" opacity="0.75"/>')
+                    s.append(f'<line x1="{xc:.1f}" y1="{y-se_px:.1f}" x2="{xc:.1f}" y2="{y+se_px:.1f}" '
+                             f'stroke="{FG}" stroke-width="1.2" opacity="0.75"/>')
+                    lbl_y = y - se_px - 5
+                s.append(f'<text x="{x+bw/2:.1f}" y="{lbl_y:.1f}" fill="{FG}" font-size="10" '
                          f'text-anchor="middle">{v:.{decimals}f}{suffix}</text>')
             x += bw + gap
         s.append(f'<text x="{cx:.1f}" y="{PY0+18}" fill="{FG}" font-size="11.5" '
@@ -97,14 +109,14 @@ def main():
     prompts, models, data = load(DATA)
     specs = [
         ("resolved", "Resolved — by prompt × model (harder band)",
-         "instances resolved / 48 (higher is better)", 48, [0, 12, 24, 36, 48], "", 0),
+         "/48 · whiskers = ±1 SE", 48, [0, 12, 24, 36, 48], "", 0, 48),
         ("tokens", "Tokens per arm — by prompt × model",
-         "millions ≈ /48 (lower is better)", 4, [0, 1, 2, 3, 4], "M", 1),
+         "millions ≈ /48 (lower is better)", 4, [0, 1, 2, 3, 4], "M", 1, None),
         ("tools", "Tool calls per instance — by prompt × model",
-         "median calls (lower is better)", 55, [0, 15, 30, 45, 55], "", 0),
+         "median calls (lower is better)", 55, [0, 15, 30, 45, 55], "", 0, None),
     ]
-    for metric, title, unit, ymax, ticks, suffix, decimals in specs:
-        svg = chart(title, unit, prompts, models, data[metric], ymax, ticks, suffix, decimals)
+    for metric, title, unit, ymax, ticks, suffix, decimals, errn in specs:
+        svg = chart(title, unit, prompts, models, data[metric], ymax, ticks, suffix, decimals, errn)
         (OUT / f"bakeoff-{metric}.svg").write_text(svg)
     print(f"wrote bakeoff-{{resolved,tokens,tools}}.svg to {OUT} (from {DATA.name})")
 

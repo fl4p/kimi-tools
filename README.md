@@ -62,6 +62,11 @@ cross-family probe — only its `cursor` and `claude-code` arms were run (`—` 
 
 ![Resolved rate by prompt × model](ab/charts/bakeoff-resolved.svg)
 
+<sub>Whiskers are **±1 binomial standard error** (~±2.6 instances at n=48). Bars whose
+whiskers overlap are *not* distinguishable — e.g. the top cluster (K2.7 sharp 42, K2.7
+default 40, GLM cursor 40) is a tie, not a ranking. Read the *within-model* direction
+(scaffold helps GLM, hurts K2.7), not the cross-model 1–2 instance gaps.</sub>
+
 **There is no universal best prompt, and the two strongest models want opposite
 things.** Each model has a *different* best arm — and the direction flips:
 
@@ -172,6 +177,11 @@ given it tried) shows the prompt mostly buys the **first**:
   59%**), and drops on our own fresh `/30`. So our top-of-board ~40 tie reflects *familiarity*,
   not a durable capability ordering — Opus and GLM generalize better, K2.7 worst. Read the
   per-arm numbers as "follow-through on a possibly-memorized benchmark," not a model leaderboard.
+
+![Same models, two benchmarks — the ranking inverts](ab/charts/generalization.svg)
+
+<sub>The lines crossing *is* the overfit: the model that tops the memorizable benchmark (K2.7) is
+the one that collapses on written-from-scratch tasks. Out-of-sample the order is Opus > GLM > K2.7.</sub>
 
 ## Repo layout
 
