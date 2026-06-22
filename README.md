@@ -148,17 +148,22 @@ given it tried) shows the prompt mostly buys the **first**:
   nothing to move — both its arms tie. K2.7 already finishes, so scaffolds only add noise and
   *hurt* it. The size of any prompt effect is set by how much a model abandons the edit loop on
   its default, not by how much "better" the prompt makes it.
-- **Likely contamination.** SWE-bench Verified is public and pre-cutoff; these models were
-  almost certainly trained on these repos. The high conditional-correct rates (74–91%) are
-  consistent with partly *recalling* fixes. Nothing here separates "solved" from "remembered" —
-  a **post-cutoff / held-out** run is needed before claiming any of this generalizes
-  out-of-sample. Full decomposition + threats: [FINDINGS → Compliance, not capability](ab/FINDINGS-swe.md#compliance-not-capability-the-attempt-rate-decomposition).
+- **Contamination — we tested it.** SWE-bench Verified is public and pre-cutoff; these models
+  were almost certainly trained on these repos. So we re-ran GLM-5.2 and K2.7 on **30 fresh,
+  post-cutoff problems** (SWE-rebench `2026_03`, issues created 2026-03→05). Result:
+  **capability generalizes** (GLM's `default` is 60% on both bands) — it is *not* pure
+  memorization — but **GLM's big pro-scaffold effect does not** (`cursor` − `default` collapses
+  from **+23 pp** to **+3 pp**), while **K2.7's anti-scaffold penalty does** (−10 pp → −20 pp).
+  On un-memorizable problems, *less* scaffolding wins for both models. The headline pro-scaffold
+  signal is substantially benchmark-overfit; raw capability is real. Full write-up:
+  **[FINDINGS → post-cutoff validity test](ab/FINDINGS-validity.md)**.
 
 ## Repo layout
 
 | Path | What |
 |------|------|
 | [`ab/FINDINGS-swe.md`](ab/FINDINGS-swe.md) | The SWE-bench results above, in full (4 models × 6 prompts + DeepSeek codex + the Opus probe). |
+| [`ab/FINDINGS-validity.md`](ab/FINDINGS-validity.md) | **Post-cutoff validity test** — GLM-5.2 & K2.7 on 30 fresh 2026 problems; what generalizes vs what was benchmark-overfit. |
 | [`ab/`](ab/) | The benchmark harnesses + `swe_bench.py` (predict/eval/aggregate) + all `FINDINGS-*.md`. |
 | [`ab/README-swe.md`](ab/README-swe.md) | How to run the SWE-bench predict + eval pipeline. |
 | [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv) | Harder-band data (resolved/48, tokens, tools); [`make_cost_charts.py`](ab/make_cost_charts.py) renders it to `ab/charts/bakeoff-*.svg`. |

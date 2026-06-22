@@ -297,7 +297,10 @@ def predict_one(inst: dict, model_key: str, opencode_bin: str, timeout: int,
 
 
 def cmd_predict(args):
-    rows = fetch_all()
+    if getattr(args, "dataset_jsonl", None):
+        rows = [json.loads(l) for l in open(args.dataset_jsonl) if l.strip()]
+    else:
+        rows = fetch_all()
     insts = select(rows, args.instances, args.repos, args.difficulty, args.limit)
     if not insts:
         sys.exit("no instances matched the selection")
@@ -447,6 +450,10 @@ def main():
                         help="comma-separated repos (owner/name)")
     common.add_argument("--difficulty", help='exact difficulty label, e.g. "<15 min fix"')
     common.add_argument("--limit", type=int, help="cap number of instances")
+    common.add_argument("--dataset-jsonl", dest="dataset_jsonl",
+                        help="load instances from a local JSONL (rows with repo/"
+                             "base_commit/problem_statement/...) instead of SWE-bench Verified; "
+                             "for fresh/post-cutoff sets like SWE-rebench")
 
     pl = sub.add_parser("list", parents=[common])
     pl.set_defaults(func=cmd_list)
