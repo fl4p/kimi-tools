@@ -40,10 +40,13 @@ full **48** (every instance grades on the Linux eval host).
 | codex | — | — | — | 24/48 | — |
 | **best arm** | cursor 40 | **sharp 42** | cursor/kcauto 34 | kcauto 26 | cursor/claude 40 |
 
-<sub>**K2.7's `sharp` (42/48) is the single best arm in the whole bake-off.**
-**Opus-4.8 (xhigh)** is a cross-family probe — only its `cursor` and `claude-code` arms
-were run (`—` = not run); details and cost in [Opus 4.8 below](#opus-48--a-cross-family-probe).
-`codex` was run on DeepSeek only.</sub>
+<sub>**The top of the board is a statistical tie, not a K2.7 win.** K2.7 sharp (42), K2.7
+default (40), GLM-5.2 cursor (40) and Opus (40/40) sit within ~1 SE (±3–4 at n=48); the
+42-vs-40 gap is ~2 instances. And K2.7's nominal lead **does not survive decontamination** —
+on fresh/from-scratch problems it ranks *last* of these models (see
+[What this measures](#what-this-measures-and-what-it-doesnt)). **Opus-4.8 (xhigh)** is a
+cross-family probe — only its `cursor` and `claude-code` arms were run (`—` = not run; see
+[Opus 4.8 below](#opus-48--a-cross-family-probe)). `codex` was run on DeepSeek only.</sub>
 
 > **Why `/48` now (was `/43`).** An earlier version reported `/43`, excluding 5
 > matplotlib instances whose prebuilt eval images wouldn't unpack on a **macOS/colima**
@@ -66,7 +69,9 @@ things.** Each model has a *different* best arm — and the direction flips:
    `kcauto` (38) tower over bare `default` (29), which is GLM-5.2's *worst* arm (+11).
 2. **K2.7 wants the opposite — no scaffold.** Bare `default` (40) and `sharp` (42) are
    its best; every heavier coding-agent prompt *hurts*, down to `kcbal` (33). The least
-   instruction wins. K2.7's `sharp` (**42/48**) is the top arm in the entire bake-off.
+   instruction wins. K2.7's `sharp` (**42/48**) nominally tops the board — but only by ~2
+   instances over a 40-cluster (GLM cursor, Opus), inside one SE, and the lead is
+   contamination-driven (it evaporates on fresh problems; see below).
 3. **K2.6 is flatter and milder** — `cursor`/`kcauto` (34) lead, `sharp` (27) trails,
    but the whole swing is ~7 and it has no strong directional preference.
 4. **DeepSeek-V4-Pro is flat and ceiling-limited** — every arm sits in a narrow
@@ -84,8 +89,10 @@ already drives a decisive edit loop on `default`** (1–6 empty everywhere), so 
 scaffolds add only friction — which is why they *cost* it instances. **DeepSeek also
 barely bails** (2–4 empty/48 on every prompt), so the scaffold has no attempt-rate to
 buy — it commits confidently and is simply *wrong* more often. Decisiveness ≠
-capability. On this band **K2.7 is the strongest model** (sharp 42/48), edging GLM-5.2
-at its best (cursor 40/48) — but at **~2× the token cost** (see below).
+capability. On this band **K2.7, GLM-5.2 and Opus tie at the top (~40/48)** — K2.7's sharp
+42 is ~2 instances up, inside noise — and K2.7 pays **~2× GLM's tokens** for it (see below).
+Treat that tie with care: it's on a *memorizable* benchmark, and on fresh problems the order
+flips (K2.7 last — see [What this measures](#what-this-measures-and-what-it-doesnt)).
 
 ### Cost — by prompt × model
 
@@ -159,6 +166,12 @@ given it tried) shows the prompt mostly buys the **first**:
   On un-memorizable problems, *less* scaffolding wins for both models. The headline pro-scaffold
   signal is substantially benchmark-overfit; raw capability is real. Full write-up:
   **[FINDINGS → post-cutoff validity test](ab/FINDINGS-validity.md)**.
+- **The model ranking is contamination-sensitive too — don't trust "K2.7 is best."** K2.7 tops
+  *this* (memorizable) benchmark but ranks **last** of the three on the independent, written-from-
+  scratch [DeepSWE](https://deepswe.datacurve.ai/) benchmark (**K2.7 31% · GLM-5.2 44% · Opus-4.8
+  59%**), and drops on our own fresh `/30`. So our top-of-board ~40 tie reflects *familiarity*,
+  not a durable capability ordering — Opus and GLM generalize better, K2.7 worst. Read the
+  per-arm numbers as "follow-through on a possibly-memorized benchmark," not a model leaderboard.
 
 ## Repo layout
 

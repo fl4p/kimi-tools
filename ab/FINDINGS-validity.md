@@ -65,6 +65,26 @@ don't expect a heavy agent scaffold to buy you GLM's benchmark-sized gains — a
 prompt is competitive or better. Tune the scaffold on *your* distribution, not on
 SWE-bench's.
 
+## External corroboration: DeepSWE
+
+[DeepSWE](https://deepswe.datacurve.ai/) is the at-scale, stronger version of this test:
+113 tasks **written from scratch** (never adapted from real commits/PRs, so unmemorizable
+by construction), 91 repos, 5 languages, every model on the same minimal `mini-swe-agent`,
+pass@1. For the three models we share it ranks:
+
+| | our SWE-bench Verified `/48` | our post-cutoff `/30` (default) | DeepSWE (from-scratch) |
+|---|:--:|:--:|:--:|
+| **K2.7** | **40–42** (nominal top) | 73% | **31% (last)** |
+| **GLM-5.2** | 40 | 60% | 44% |
+| **Opus-4.8** | 40 | — | 59% |
+
+The ranking **inverts**: K2.7 leads on the memorizable benchmark and is *last* on the
+written-from-scratch one, while Opus and GLM hold up. The three benchmarks form a
+contamination gradient — Verified (memorizable) → SWE-rebench (fresh issue, real repo) →
+DeepSWE (wholly novel) — and K2.7 falls monotonically across it (40–42 → 73% → 31%) while
+GLM/Opus degrade far less. That is independent, larger-N confirmation of the core finding:
+the SWE-bench-Verified ordering is substantially a familiarity artifact, worst for K2.7.
+
 ## Caveats
 
 - **N = 30, one month, two models.** The GLM cursor−default gap post-cutoff is ±1

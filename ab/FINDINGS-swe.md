@@ -34,10 +34,13 @@ band × all six prompts.
    things.** **GLM-5.2 → cursor** (40/48), **K2.7 → sharp/default** (42/40), **K2.6 →
    cursor/kcauto** (34), **DeepSeek → kcauto** (26). The same scaffolds that *lift* GLM
    (+11) *hurt* K2.7 (−9).
-2. **K2.7 is the strongest model on this band** — `sharp` 42/48 (88%) is the single best
-   arm — narrowly over GLM-5.2's best (`cursor` 40/48). But K2.7 pays **~2× GLM's
-   tokens** (~65k vs ~30k per instance) for it; **GLM-5.2 is the value pick** (same
-   ceiling at its best, fewest tokens).
+2. **The top is a ~40 tie, not a K2.7 win.** K2.7 `sharp` (42), K2.7 `default` (40), GLM-5.2
+   `cursor` (40) and Opus (40/40) sit within ~1 SE (±3–4 at n=48) — the 42-vs-40 gap is ~2
+   instances. And the order is **contamination-driven**: on the decontaminated, written-from-
+   scratch [DeepSWE](https://deepswe.datacurve.ai/) benchmark K2.7 ranks **last** of the three
+   (31% vs GLM 44%, Opus 59%), and it drops on our own fresh `/30`. So K2.7's nominal lead here
+   is *familiarity*, not durable capability. **GLM-5.2 is the value pick** (top-tier at its best,
+   fewest tokens — K2.7 pays ~2× the tokens, ~65k vs ~30k/instance).
 3. **DeepSeek-V4-Pro is the weakest and flat** (21–26/48). It *attempts* as readily as
    anyone (2–4 empty/48) but its **conditional quality is ~50%** — it commits confidently
    and is wrong half the time. Decisiveness ≠ capability.
@@ -74,8 +77,8 @@ model has a *different* best arm, and the direction of the scaffold effect flips
 1. **GLM-5.2 wants scaffolding badly** — `cursor` (40, 83%), `claude-code` (39), `kcauto`
    (38) tower over bare `default` (29), GLM's *worst* arm. A +11 swing.
 2. **K2.7 wants the opposite — no scaffold.** Bare `default` (40) and `sharp` (42) win;
-   every heavier coding-agent prompt *hurts*, down to `kcbal` (33). K2.7's `sharp` (42/48)
-   is the top arm in the whole bake-off.
+   every heavier coding-agent prompt *hurts*, down to `kcbal` (33). K2.7's `sharp` (42) is the
+   nominal top arm, but only ~2 instances over the GLM/Opus 40-cluster (within noise).
 3. **K2.6 is flatter and milder** — `cursor`/`kcauto` (34) lead, `sharp` (27) trails; ~7
    spread, no strong direction.
 4. **DeepSeek-V4-Pro is flat and ceiling-limited** — 21–26/48 across every arm (best
@@ -90,8 +93,9 @@ trajectories without committing any source edit; the coding-agent scaffolds ("ed
 source, don't stop at analysis"; verify before finishing) cut that to **1–4**, and the
 resolved-rate gain tracks the empty-rate drop almost exactly. K2.7 already drives a
 decisive edit loop on `default` (1–6 empty everywhere), so the same scaffolds only add
-friction — which is why they *cost* it instances. At its best, **K2.7 is the strongest
-model** (sharp 42/48), edging GLM-5.2 (cursor 40/48) — but at ~2× the token cost.
+friction — which is why they *cost* it instances. At their best, **K2.7, GLM-5.2 and Opus
+tie at ~40/48** (K2.7 sharp 42 is ~2 instances up, within noise) — but K2.7 pays ~2× the
+tokens, and its lead doesn't survive decontamination (DeepSWE ranks it last; see *Contamination*).
 
 ### Harder-band cost (median tokens/instance · median tool calls/instance)
 
@@ -169,6 +173,15 @@ fixes, we re-ran GLM-5.2 and K2.7 on **30 fresh problems created 2026-03→05** 
 On un-memorizable problems, *less* scaffolding wins for both. The headline pro-scaffold signal
 is substantially benchmark-overfit; raw capability is real. Full write-up + caveats:
 **[FINDINGS-validity.md](FINDINGS-validity.md)**.
+
+**An independent benchmark agrees — and it reorders the models.** [DeepSWE](https://deepswe.datacurve.ai/)
+(113 tasks *written from scratch*, never adapted from real commits/PRs, so unmemorizable by
+construction; all models on the same minimal `mini-swe-agent`) ranks the three we share:
+**Opus-4.8 59% · GLM-5.2 44% · K2.7 31% (last)**. That is the *opposite* of our top-of-board
+order, where K2.7 nominally leads. The model that tops *this* (memorizable) benchmark is the
+one that falls furthest on novel tasks — the textbook contamination signature. So our ~40 tie
+should be read as "K2.7/GLM/Opus all reach ~40 *on problems they may have seen*," not as a
+durable capability ranking; out-of-sample, **Opus > GLM > K2.7**.
 
 ## Opus 4.8 (xhigh) — a cross-family probe
 
