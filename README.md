@@ -85,7 +85,7 @@ scaffolds add only friction — which is why they *cost* it instances. **DeepSee
 barely bails** (2–4 empty/48 on every prompt), so the scaffold has no attempt-rate to
 buy — it commits confidently and is simply *wrong* more often. Decisiveness ≠
 capability. On this band **K2.7 is the strongest model** (sharp 42/48), edging GLM-5.2
-at its best (cursor 40/48) — but at **5–10× the token cost** (see below).
+at its best (cursor 40/48) — but at **~2× the token cost** (see below).
 
 ### Cost — by prompt × model
 
@@ -94,11 +94,12 @@ at its best (cursor 40/48) — but at **5–10× the token cost** (see below).
 ![Tool calls per instance](ab/charts/bakeoff-tools.svg)
 
 **Capability and cost are inversely ranked here.** GLM-5.2 is the **cheapest
-everywhere** — ~12–27 M tokens/arm and the fewest tool calls — for a top-tier result.
-**K2.7 buys its chart-topping 42/48 with brute force:** 97–133 M tokens/arm (a
-reasoning model, thinking on) and 43–50 tool calls/instance — **5–10× GLM's tokens**
-for a ~2-instance edge. K2.6 is in between (63–85 M). **DeepSeek-V4-Pro is no bargain
-despite its lean tool count**: 21–42 M tokens/arm (≈2× GLM) for the *lowest* resolve.
+everywhere** — ~30k tokens/instance and the fewest tool calls — for a top-tier result.
+**K2.7 buys its chart-topping 42/48 with more compute:** ~65k tokens/instance (a
+reasoning model, thinking on) and 43–50 tool calls/instance — **~2× GLM's tokens** for
+a ~2-instance edge. K2.6 sits in between (~48k). **DeepSeek-V4-Pro is no bargain despite
+its lean tool count**: ~35k tokens/instance (≈GLM's) for the *lowest* resolve. (On
+Fireworks all three open models cost only ~$1/arm; the spread is in tokens, not dollars.)
 So the value ranking is GLM ≫ everything: same ceiling as K2.7/Opus at a fraction of
 the cost. Charts are rendered by [`ab/make_cost_charts.py`](ab/make_cost_charts.py)
 (pure-stdlib SVG, no matplotlib) from [`ab/bake-off-cost.csv`](ab/bake-off-cost.csv).
@@ -109,14 +110,15 @@ Does a frontier *closed* model clear this band? Two probes — **Claude Opus 4.8
 `xhigh` reasoning effort** (Anthropic, via opencode `--variant xhigh`), on the
 `claude-code` and `cursor` prompts:
 
-| arm | resolved /48 | empty | cost |
+| arm | resolved /48 | empty | cost/arm |
 |-----|:---:|:---:|:---:|
-| opus-4.8-xhigh · claude-code | **40/48 (83%)** | 1 | $52.46 |
-| opus-4.8-xhigh · cursor | **40/48 (83%)** | 3 | $43.71 |
+| opus-4.8-xhigh · claude-code | **40/48 (83%)** | 1 | ~$6 |
+| opus-4.8-xhigh · cursor | **40/48 (83%)** | 3 | ~$6 |
 
 It lands **level with GLM-5.2's strong arms and K2.7's default/sharp (40/48), not above
 them** — a frontier closed model at high effort ≈ well-scaffolded GLM-5.2 or
-no-scaffold K2.7 here, at ~**$96 for the pair** vs GLM's Fireworks pennies. And Opus's
+no-scaffold K2.7 here, at ~**$6/arm** (cache-aware Anthropic billing) vs the open models'
+~$1/arm on Fireworks. And Opus's
 prompt sensitivity is **flat** (claude = cursor = 40) — a "no scaffold needed" profile,
 like DeepSeek's, not GLM-5.2's big swing.
 

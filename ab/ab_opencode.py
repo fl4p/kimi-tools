@@ -105,9 +105,14 @@ def parse_opencode(stdout: str) -> OcParse:
             calls.append((name, json.dumps(inp, sort_keys=True)))
             by_name[name] = by_name.get(name, 0) + 1
         elif t == "step_finish":
+            # opencode's tokens.total and cost are CUMULATIVE session counters
+            # (they climb each step: 12k -> 14k -> ... -> final). Take the running
+            # max (= final cumulative), NOT the sum — summing inflates per-instance
+            # tokens/cost by ~(n_steps/2)x. (A single-step fixture hides this since
+            # max == sum there, which is how the bug shipped.)
             part = o.get("part", {}) or {}
-            tokens += (part.get("tokens", {}) or {}).get("total", 0) or 0
-            cost += part.get("cost", 0) or 0.0
+            tokens = max(tokens, (part.get("tokens", {}) or {}).get("total", 0) or 0)
+            cost = max(cost, part.get("cost", 0) or 0.0)
     seen: dict = {}
     for c in calls:
         seen[c] = seen.get(c, 0) + 1

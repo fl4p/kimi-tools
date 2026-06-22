@@ -35,9 +35,9 @@ band × all six prompts.
    cursor/kcauto** (34), **DeepSeek → kcauto** (26). The same scaffolds that *lift* GLM
    (+11) *hurt* K2.7 (−9).
 2. **K2.7 is the strongest model on this band** — `sharp` 42/48 (88%) is the single best
-   arm — narrowly over GLM-5.2's best (`cursor` 40/48). But K2.7 pays **97–133M
-   tokens/arm** (5–10× GLM) for it; **GLM-5.2 is the value pick** (12–27M tokens, same
-   ceiling at its best).
+   arm — narrowly over GLM-5.2's best (`cursor` 40/48). But K2.7 pays **~2× GLM's
+   tokens** (~65k vs ~30k per instance) for it; **GLM-5.2 is the value pick** (same
+   ceiling at its best, fewest tokens).
 3. **DeepSeek-V4-Pro is the weakest and flat** (21–26/48). It *attempts* as readily as
    anyone (2–4 empty/48) but its **conditional quality is ~50%** — it commits confidently
    and is wrong half the time. Decisiveness ≠ capability.
@@ -91,24 +91,25 @@ source, don't stop at analysis"; verify before finishing) cut that to **1–4**,
 resolved-rate gain tracks the empty-rate drop almost exactly. K2.7 already drives a
 decisive edit loop on `default` (1–6 empty everywhere), so the same scaffolds only add
 friction — which is why they *cost* it instances. At its best, **K2.7 is the strongest
-model** (sharp 42/48), edging GLM-5.2 (cursor 40/48) — but at 5–10× the token cost.
+model** (sharp 42/48), edging GLM-5.2 (cursor 40/48) — but at ~2× the token cost.
 
-### Harder-band cost (per arm, 48 instances)
+### Harder-band cost (median tokens/instance · median tool calls/instance)
 
-| prompt | GLM-5.2 tok/tools | K2.7 tok/tools/$ | K2.6 tok/tools/$ | DeepSeek tok/tools/$ |
+| prompt | GLM-5.2 | K2.7 | K2.6 | DeepSeek |
 |--------|---|---|---|---|
-| default | 12M / 11 | 133M / 50 / $32 | 63M / 33 / $15 | 21M / 15 / $6 |
-| sharp   | 15M / 14 | 108M / 43 / $26 | 75M / 41 / $18 | 31M / 19 / $8 |
-| cursor  | 20M / 15 | 112M / 44 / $27 | 72M / 36 / $17 | 26M / 19 / $7 |
-| kimi-cline (autonomous) | 27M / 21 | 111M / 43 / $27 | 85M / 41 / $20 | 40M / 28 / $10 |
-| kimi-cline (balanced)   | 18M / 17 | 101M / 44 / $24 | 84M / 41 / $19 | 42M / 30 / $10 |
-| claude-code | 17M / 15 | 97M / 43 / $24 | 77M / 39 / $19 | 24M / 18 / $7 |
+| default | 28k / 11 | 80k / 50 | 45k / 33 | 31k / 15 |
+| sharp   | 32k / 14 | 56k / 43 | 50k / 41 | 34k / 19 |
+| cursor  | 30k / 15 | 69k / 44 | 51k / 36 | 36k / 19 |
+| kimi-cline (autonomous) | 31k / 21 | 62k / 43 | 46k / 41 | 37k / 28 |
+| kimi-cline (balanced)   | 30k / 17 | 67k / 44 | 47k / 41 | 42k / 30 |
+| claude-code | 29k / 15 | 59k / 43 | 49k / 39 | 35k / 18 |
 
-<sub>`tok` = total in+out across the arm (millions); `tools` = median tool calls/instance;
-`$` = opencode's blended cache-aware cost estimate (GLM `$` omitted — needs the GLM-5.2
-Fireworks rate; its tokens run ~3× below Kimi). **Capability and cost are inversely ranked:
-GLM-5.2 is cheapest *and* top-tier; K2.7 buys its 42/48 with 5–10× the tokens; DeepSeek is
-no bargain** (≈2× GLM tokens for the lowest resolve). GLM's heavy in-solve installing
+<sub>`tok` = median tokens/instance (opencode's final cumulative session total — **not** the
+sum of per-step counters, which is a ~(steps/2)× overcount we fixed); `tools` = median tool
+calls/instance. On Fireworks all three open models bill only ~$1/arm, so cost separation is
+in tokens, not dollars. **Capability and cost are inversely ranked: GLM-5.2 is cheapest *and*
+top-tier (~30k/inst); K2.7 buys its 42/48 with ~2× the tokens (~65k/inst); DeepSeek is no
+bargain** (~GLM's tokens for the lowest resolve). GLM's heavy in-solve installing
 exposed (and we fixed) a patch-extraction leak — see **GLM-5.2 notes** below.</sub>
 
 ## Compliance vs capability: the attempt-rate decomposition
@@ -175,16 +176,16 @@ Does a frontier *closed* model clear this band? Two cross-family probes — **Cl
 at `xhigh` reasoning effort** (Anthropic, via opencode `run --variant xhigh`) on the
 `claude-code` and `cursor` prompts, same 48-instance band, same harness:
 
-| arm | resolved /48 | empty | cost | tokens |
+| arm | resolved /48 | empty | cost/arm | tokens/inst |
 |-----|:---:|:---:|:---:|:---:|
-| opus-4.8-xhigh · claude-code | **40/48 (83%)** | 1 | $52.46 | 48.6M |
-| opus-4.8-xhigh · cursor      | **40/48 (83%)** | 3 | $43.71 | 40.2M |
+| opus-4.8-xhigh · claude-code | **40/48 (83%)** | 1 | ~$6 | ~39k |
+| opus-4.8-xhigh · cursor      | **40/48 (83%)** | 3 | ~$6 | ~39k |
 
 **Both land level with GLM-5.2's and K2.7's best (40/48), not above.** A frontier closed
-model at high reasoning effort ≈ a well-scaffolded open model on this band — at very
-different cost (~**$44–52/arm, ~$96 for the pair**) vs Fireworks pennies. (The `$` is the
-cache-aware figure opencode reports; most of the 40–49M tokens are cache-reads at $0.5/M,
-so a naive tokens×rate estimate overshoots ~3–5×.) **Opus's prompt sensitivity is flat**
+model at high reasoning effort ≈ a well-scaffolded open model on this band — at
+**~$6/arm (~$12 for the pair)**, a few × the Fireworks models' ~$1/arm but not the order
+of magnitude an uncorrected count would suggest. (Anthropic billing is cache-aware: most of
+Opus's tokens are cache-reads at $0.5/M, so ~$0.13/instance.) **Opus's prompt sensitivity is flat**
 (claude = cursor = 40), and `cursor` actually *raised* its empty rate (3 vs 1) — a "wants no
 scaffold" profile like K2.7's and DeepSeek's, not GLM-5.2's big swing.
 
@@ -264,7 +265,7 @@ separation"** — it's a control, not a discriminator, and the harder band drive
 
 **Bottom line:** trust the *direction* (scaffolds help GLM, hurt K2.7, don't move DeepSeek/
 Opus; capability generalizes but the pro-scaffold magnitude is overfit) and the cost ordering
-(GLM cheapest, K2.7 5–10× pricier); don't over-read 1–2 instance arm gaps.
+(GLM cheapest in tokens, K2.7 ~2× pricier); don't over-read 1–2 instance arm gaps.
 
 ## Pipeline
 - **Predict**: `swe_bench.py` — clone repo@base_commit, run opencode on the issue, extract

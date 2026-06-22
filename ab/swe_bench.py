@@ -30,6 +30,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -242,19 +243,30 @@ def predict_one(inst: dict, model_key: str, opencode_bin: str, timeout: int,
                "PIP_CACHE_DIR": str(wd / ".pipcache")}
         start = time.perf_counter()
         err = None
+        # IMPORTANT: cwd=wd. Running opencode from elsewhere (e.g. inside this repo)
+        # makes it inherit the *wrong* project config (.opencode/, AGENTS) and scan
+        # the wrong tree -> it never converges and times out empty.
+        # stdin=DEVNULL: codex exec otherwise blocks "Reading additional input from
+        # stdin..." when stdin isn't a TTY. Harmless for opencode.
+        # start_new_session=True puts opencode AND its grandchildren (node, model/tool
+        # subprocesses) in one process group; on timeout we kill the whole group via
+        # killpg. Plain subprocess.run timeout only kills the direct child, orphaning
+        # the grandchildren -> stale opencode trees that pile up CPU and survive a
+        # pkill of this python process.
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, cwd=str(wd), env=env,
+                                stdin=subprocess.DEVNULL, start_new_session=True)
         try:
-            # IMPORTANT: cwd=wd. Running opencode from elsewhere (e.g. inside this
-            # repo) makes it inherit the *wrong* project config (.opencode/, AGENTS)
-            # and scan the wrong tree -> it never converges and times out empty.
-            # stdin=DEVNULL: codex exec otherwise blocks "Reading additional input
-            # from stdin..." when stdin isn't a TTY. Harmless for opencode.
-            proc = subprocess.run(cmd, capture_output=True, text=True,
-                                  timeout=timeout, cwd=str(wd), env=env,
-                                  stdin=subprocess.DEVNULL)
-            stdout, stderr, rc = proc.stdout, proc.stderr, proc.returncode
+            stdout, stderr = proc.communicate(timeout=timeout)
+            rc = proc.returncode
             if rc != 0:
                 err = f"exit {rc}: {stderr.strip()[:160]}"
         except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                proc.kill()
+            proc.wait()
             stdout, stderr, err = "", "timeout", "timeout"
         dur = time.perf_counter() - start
 
@@ -379,8 +391,10 @@ MODEL_LABEL = {"k2.6": "K2.6", "k2.7": "K2.7", "glm5.2": "GLM-5.2",
 def _resolved_from_report(path: Path):
     """Pull (resolved, total) out of a swebench run_evaluation report JSON."""
     rep = json.loads(Path(path).read_text())
-    total = rep.get("total_instances") or rep.get("submitted_instances") \
-        or len(rep.get("submitted_ids", [])) or None
+    # total = the GRADED band, not total_instances (which swebench 4.1.0 sets to the
+    # whole --dataset_name size, e.g. 500, even when only 8 were graded -> wrong denom).
+    total = rep.get("submitted_instances") or len(rep.get("submitted_ids", [])) \
+        or rep.get("total_instances") or None
     resolved = rep.get("resolved_instances")
     if resolved is None and "resolved_ids" in rep:
         resolved = len(rep["resolved_ids"])
@@ -401,10 +415,6 @@ def cmd_aggregate(args):
         vals = [m[key] for m in metas if m.get(key) is not None]
         return round(sum(vals) / len(vals) / scale, 1) if vals else ""
 
-    def tot(key, scale=1.0):
-        vals = [m[key] for m in metas if m.get(key) is not None]
-        return round(sum(vals) / scale) if vals else ""
-
     model = args.model_label or MODEL_LABEL.get(
         (metas[0].get("model") or "").lower(), metas[0].get("model", "?"))
 
@@ -416,9 +426,14 @@ def cmd_aggregate(args):
     else:
         resolved, total = "", n
 
+    # tokens_m = mean per-instance tokens x band size, so arms with missing logs
+    # (n < band) stay comparable instead of undercounting the raw sum. Band size =
+    # the resolved denominator when known, else the metered instance count.
+    band = total if isinstance(total, int) and total else n
+    _mt = avg("tokens")
     row = {"prompt": args.prompt, "model": model,
            "resolved": resolved, "total": total,
-           "tokens_m": tot("tokens", 1_000_000.0),
+           "tokens_m": round(_mt * band / 1_000_000.0, 1) if _mt else "",
            "tool_calls": round(avg("tool_calls") or 0)}
 
     csv_path = Path(args.csv)
@@ -434,8 +449,8 @@ def cmd_aggregate(args):
         w.writeheader()
         w.writerows(rows)
     print(f"upserted {row['prompt']}/{row['model']} "
-          f"(resolved={resolved}/{total}, {row['latency_s']}s, "
-          f"{row['tokens_k']}k, {row['tool_calls']} tools) -> {csv_path}",
+          f"(resolved={resolved}/{total}, {row['tokens_m']}M, "
+          f"{row['tool_calls']} tools) -> {csv_path}",
           file=sys.stderr)
 
 

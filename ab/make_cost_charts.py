@@ -2,8 +2,9 @@
 """Render the harder-band bake-off as grouped-bar SVG charts.
 
 Reads ab/bake-off-cost.csv — one row per (prompt, model) over the 48-instance
-harder band (resolved out of the 43 comparable instances; see FINDINGS-swe.md).
-Nothing is hard-coded here; edit the CSV and re-run.
+harder band (resolved out of 48; see FINDINGS-swe.md). `tokens_m` is per-arm token
+volume scaled to 48 instances (millions). Nothing is hard-coded here; edit the CSV
+and re-run.
 
 Pure stdlib (no matplotlib) — keeps the repo dependency-free and the SVG output
 diff-friendly and GitHub-renderable. Writes charts/bakeoff-{resolved,tokens,
@@ -72,7 +73,7 @@ def chart(title, unit, prompts, models, series, ymax, ticks, suffix, decimals=0)
         for j, mdl in enumerate(models):
             v = series[p].get(mdl)  # a model may not run every prompt -> empty slot
             if v is not None:
-                bh = PH * (v / ymax)
+                bh = PH * (min(v, ymax) / ymax)  # clamp so an over-max value can't overflow the plot
                 y = PY0 - bh
                 s.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:g}" height="{bh:.1f}" '
                          f'fill="{COLORS[j % len(COLORS)]}" rx="2"/>')
@@ -98,9 +99,9 @@ def main():
         ("resolved", "Resolved — by prompt × model (harder band)",
          "instances resolved / 48 (higher is better)", 48, [0, 12, 24, 36, 48], "", 0),
         ("tokens", "Tokens per arm — by prompt × model",
-         "millions, 48 instances (lower is better)", 140, [0, 35, 70, 105, 140], "M", 0),
+         "millions ≈ /48 (lower is better)", 4, [0, 1, 2, 3, 4], "M", 1),
         ("tools", "Tool calls per instance — by prompt × model",
-         "avg calls (lower is better)", 55, [0, 15, 30, 45], "", 0),
+         "median calls (lower is better)", 55, [0, 15, 30, 45, 55], "", 0),
     ]
     for metric, title, unit, ymax, ticks, suffix, decimals in specs:
         svg = chart(title, unit, prompts, models, data[metric], ymax, ticks, suffix, decimals)

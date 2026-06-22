@@ -53,7 +53,12 @@ def run_eval(preds, run_id, report_dir, workers, instances=None):
     subprocess.run(cmd, cwd=str(report_dir), check=False)
     rep = sorted(glob.glob(f"{report_dir}/*{run_id}.json"), key=os.path.getmtime)
     if not rep:
-        return set(), set()
+        # fail LOUD — a missing report means grading didn't run (docker died, wrong
+        # report-dir, harness crash). Returning set(),set() silently records 0/0 as if
+        # the arm scored zero, which is indistinguishable from a real 0 and corrupts the
+        # summary. Better to abort than to publish a phantom 0.
+        raise RuntimeError(f"no eval report matching *{run_id}.json in {report_dir} — "
+                           f"grading produced nothing (docker/harness failure?)")
     d = json.load(open(rep[-1]))
     return set(d.get("resolved_ids", [])), set(d.get("submitted_ids", []))
 
@@ -77,9 +82,13 @@ def failure_is_network(report_dir, run_id, iid):
     out = open(cands[0]).read()
     rep = json.load(open(repf))[iid]["tests_status"]
     f2p_fail = rep["FAIL_TO_PASS"]["failure"]
+    p2p_fail = rep["PASS_TO_PASS"]["failure"]
     has_net = any(sig in out for sig in NET_SIGNATURES)
-    # flake = the actual fix worked (no FAIL_TO_PASS failures) but a network sig appears
-    return has_net and not f2p_fail
+    # flake = the ONLY thing keeping it unresolved is a network-tainted test: both the
+    # fix tests (FAIL_TO_PASS) and the regression tests (PASS_TO_PASS) must be clean of
+    # real failures. A genuine PASS_TO_PASS regression must NOT be re-eval-recovered just
+    # because a network sig also appears in the log.
+    return has_net and not f2p_fail and not p2p_fail
 
 
 def main():
