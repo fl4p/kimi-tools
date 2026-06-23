@@ -183,6 +183,29 @@ given it tried) shows the prompt mostly buys the **first**:
 <sub>The lines crossing *is* the overfit: the model that tops the memorizable benchmark (K2.7) is
 the one that collapses on written-from-scratch tasks. Out-of-sample the order is Opus > GLM > K2.7.</sub>
 
+### Why our ranking ≠ [DeepSWE](https://deepswe.datacurve.ai/)
+
+Our board (K2.7 ≈ GLM ≈ Opus, all ~83–88%) and DeepSWE's (Opus 59 > GLM 44 > K2.7 31) disagree
+because **this isn't a capability ranking** — three forces all push our numbers toward "everyone's
+tied near the top," and only one of them is contamination:
+
+1. **Contamination** — public, pre-cutoff, famous repos. Inflates everyone, *most* the
+   most-memorized model. Explains K2.7 going top here → last on from-scratch tasks.
+2. **Ceiling compression** — SWE-bench Verified is curated-solvable, well-scoped, mostly
+   single-file Python. Strong models bunch at 83–88%, so the scale runs out of range and **can't
+   separate them**: GLM and Opus tie here (40/48 each) yet DeepSWE — harder, ceiling ~70% — splits
+   them by 15 pts. A compressed scale hides real gaps. This would bite *even on a perfectly
+   decontaminated benchmark.*
+3. **Different instrument** — we report each model at its *best* prompt (more cherry-picking →
+   more compression); DeepSWE runs one fixed minimal scaffold. Ours is 8 famous **Python** repos;
+   DeepSWE is 91 repos × **5 languages**, novel and harder — so a model weaker outside Python loses
+   ground for reasons unrelated to contamination.
+
+So the divergence isn't a bug to reconcile — it's the point. **To rank models, trust DeepSWE, not
+this.** What this repo is actually good for is the *within-model* question (does prompt X change
+how often model M commits a correct edit) — and even that, [the validity test](ab/FINDINGS-validity.md)
+shows, mostly doesn't transfer off the benchmark.
+
 ## Repo layout
 
 | Path | What |
